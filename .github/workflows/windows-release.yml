@@ -1,0 +1,92 @@
+name: Windows Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build and publish Windows release
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags are needed to compute the next release version
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compute release version
+        id: version
+        shell: pwsh
+        run: |
+          $baseVersion = (Select-String -Path build.gradle.kts -Pattern '^val baseVersion = "(\d+\.\d+\.\d+)"').Matches[0].Groups[1].Value
+          $latestTag = git tag --list "v*" --sort=-v:refname | Select-Object -First 1
+          $latestVersion = if ($latestTag) { $latestTag.TrimStart('v') } else { '0.0.0' }
+
+          # Use the version declared in build.gradle.kts when it is ahead of the
+          # latest tag; otherwise bump the latest release's patch number.
+          if ([version]$baseVersion -gt [version]$latestVersion) {
+            $version = $baseVersion
+          } else {
+            $parts = $latestVersion.Split('.')
+            $parts[2] = ([int]$parts[2] + 1).ToString()
+            $version = $parts -join '.'
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing v$version (base $baseVersion, latest tag $latestVersion)"
+
+      - name: Run tests
+        shell: pwsh
+        run: .\gradlew.bat test --console=plain
+
+      - name: Build installer and seeded database
+        shell: pwsh
+        run: .\gradlew.bat releaseArtifacts "-PappVersion=${{ steps.version.outputs.version }}" --console=plain
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.version.outputs.tag }}"
+          $version = "${{ steps.version.outputs.version }}"
+          $exe = Get-ChildItem -Path build/release -Filter *.exe | Select-Object -First 1
+          $db = Get-Item build/release/agritourism.db
+
+          $notes = gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" `
+            -f tag_name=$tag `
+            -f target_commitish=$env:GITHUB_SHA `
+            --jq .body
+
+          @"
+          $notes
+
+          ### Release assets
+          - **$($exe.Name)** — self-contained Windows installer; no JDK required.
+          - **$($db.Name)** — pre-seeded SQLite database. Set ``AGRITOURISM_DB`` to its path to run against it.
+          "@ | Set-Content -Path release-notes.md -Encoding utf8
+
+          gh release create $tag $exe.FullName $db.FullName `
+            --title "AgriTourism Philippines v$version" `
+            --notes-file release-notes.md `
+            --target $env:GITHUB_SHA

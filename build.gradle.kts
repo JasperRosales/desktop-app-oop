@@ -7,8 +7,12 @@ plugins {
     id("org.jetbrains.compose") version "1.8.0"
 }
 
+// CI passes -PappVersion=<version>; local builds use the base version below.
+val baseVersion = "1.1.1"
+val appVersion = (findProperty("appVersion") as String?) ?: baseVersion
+
 group = "ph.agritourism"
-version = "1.1.1"
+version = appVersion
 
 kotlin { jvmToolchain(17) }
 
@@ -38,7 +42,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "AgriTourism Philippines"
-            packageVersion = "1.1.1"
+            packageVersion = appVersion
             description = "AgriTourism Philippines desktop app (Kotlin Compose + SQLite)"
             vendor = "AgriTourism Philippines"
             modules("java.sql")

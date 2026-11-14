@@ -17,6 +17,15 @@ Requires JDK 17+.
 ./gradlew releaseArtifacts    # installer(s) + seeded database in build/release
 ```
 
+## Releases
+
+Every push to `main` runs `.github/workflows/windows-release.yml`, which tests the app,
+builds the Windows installer plus the seeded database, and publishes a new GitHub release
+with an automatically incremented `vX.Y.Z` tag. Bump the base `version` in
+`build.gradle.kts` (for example to `1.2.0`) when you want a minor or major release;
+otherwise the patch number is bumped automatically. Releases can also be triggered
+manually from the **Actions** tab.
+
 ## Data
 
 - SQLite file: `~/.agritourism/agritourism.db` (override with `AGRITOURISM_DB=/path/file.db`).
