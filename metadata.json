@@ -1,0 +1,6 @@
+{
+  "name": "AgriTourism Desktop Platform",
+  "description": "Comprehensive desktop AgriTourism platform for booking farm tours, fruit picking, exploring nature spots, and purchasing fresh local organic produce with secure GCash and bank payments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

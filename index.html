@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E562F" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="AgriTourism" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>AgriTourism - Farm. Connect. Experience.</title>
+    <meta name="description" content="AgriTourism Platform: Explore organic farms, book fruit picking and hiking tours, and shop fresh local farm produce with secure GCash, bank transfer, and COD payments." />
+    <meta property="og:title" content="AgriTourism - Farm. Connect. Experience." />
+    <meta property="og:description" content="Explore organic farms, book fruit picking and hiking tours, and shop fresh local farm produce." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-[#F8F6F0] text-[#1E2E1E] antialiased selection:bg-[#2D5A27] selection:text-white">
+    <!-- ======================================================================= -->
+    <!-- AGRITOURISM IMAGE REGISTRY (EDIT PICTURES HERE IN HTML!)                -->
+    <!-- To change any picture in the system, simply replace the src="..."       -->
+    <!-- attribute of the matching <img> tag below (URL or /assets/... path).    -->
+    <!-- ======================================================================= -->
+    <template id="agritourism-images">
+      <!-- BACKGROUNDS, BANNERS & AVATARS -->
+      <img data-key="globalFarmBackground" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=2560&q=85" alt="Global Farm Background" />
+      <img data-key="sunnyvaleTourBanner" src="https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=1200&q=80" alt="Sunnyvale Tour Banner" />
+      <img data-key="fruitPickingBanner" src="https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?auto=format&fit=crop&w=1200&q=80" alt="Fruit Picking Banner" />
+      <img data-key="adminMockupRef" src="/assets/aistudio/Screenshot_2026-11-05_124705_4d6a6d5e.png" alt="Admin Reference Mockup" />
+      <img data-key="farmLifeBannerPhoto" src="https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=1600&q=80" alt="Farm Life Banner" />
+      <img data-key="mangRigorPhoto" src="https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=1000&q=80" alt="Mang Rigor Rodriguez" />
+      <img data-key="farmerProfileBanner" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80" alt="Sunnyvale Farm Landscape" />
+      <img data-key="mariaAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80" alt="Maria Santos Avatar" />
+      <img data-key="juanAvatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80" alt="Juan Dela Cruz Avatar" />
+      <img data-key="adminAvatar" src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80" alt="Administrator Avatar" />
+      <img data-key="gcashQrMockup" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=AGRITOURISM-GCASH-PAYMENT-REF-2026" alt="GCash QR Code" />
+      <img data-key="receiptSamplePhoto" src="https://images.unsplash.com/photo-1554415707-9e4966668834?auto=format&fit=crop&w=600&q=80" alt="Uploaded Payment Receipt Sample" />
+      <img data-key="defaultProductFallbackImage" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80" alt="Default Produce Image" />
+
+      <!-- FARMER PROFILES & STORIES -->
+      <!-- Farmer 1: Mang Juan Dela Cruz -->
+      <img data-key="farmer1Photo" src="=/farmers/Juan.png" alt="Mang Juan Dela Cruz" />
+      <img data-key="farmer1Banner" src="https:1dfef3854?auto=format&fit=crop&w=1200&q=80" alt="Sunnyvale Farm Banner" />
+      <img data-key="farmer1Gallery1" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=600&q=80" alt="Sunnyvale Gallery 1" />
+      <img data-key="farmer1Gallery2" src="https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=600&q=80" alt="Sunnyvale Gallery 2" />
+      <img data-key="farmer1Gallery3" src="https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=600&q=80" alt="Sunnyvale Gallery 3" />
+      <img data-key="farmer1Gallery4" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80" alt="Sunnyvale Gallery 4" />
+
+      <!-- Farmer 2: Nanay Elena Soriano -->
+      <img data-key="farmer2Photo" src="/farmers/Maria.png" alt="Nanay Maria" />
+      <img data-key="farmer2Banner" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=1200&q=80" alt="Benguet Berry Haven Banner" />
+      <img data-key="farmer2Gallery1" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=600&q=80" alt="Benguet Gallery 1" />
+      <img data-key="farmer2Gallery2" src="https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=600&q=80" alt="Benguet Gallery 2" />
+      <img data-key="farmer2Gallery3" src="https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=600&q=80" alt="Benguet Gallery 3" />
+      <img data-key="farmer2Gallery4" src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=600&q=80" alt="Benguet Gallery 4" />
+
+      <!-- Farmer 3: Mang Rigor Rodriguez -->
+      <img data-key="farmer3Photo" src="/farmers/Ricardo.png" alt="Mang Ricardo" />
+      <img data-key="farmer3Banner" src="https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=1200&q=80" alt="Batangas Heritage Mango Farm Banner" />
+      <img data-key="farmer3Gallery1" src="https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80" alt="Mang Rigor Gallery 1" />
+      <img data-key="farmer3Gallery2" src="https://images.unsplash.com/photo-1553279768-4653b0999a88?auto=format&fit=crop&w=600&q=80" alt="Mang Rigor Gallery 2" />
+      <img data-key="farmer3Gallery3" src="https://images.unsplash.com/photo-1506807803488-8eafc15316c6?auto=format&fit=crop&w=600&q=80" alt="Mang Rigor Gallery 3" />
+      <img data-key="farmer3Gallery4" src="https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=600&q=80" alt="Mang Rigor Gallery 4" />
+
+      <!-- Farmer 4: Tatay Ramon Alcantara -->
+      <img data-key="farmer4Photo" src="/farmers/Roberto.png" alt="Tatay Roberto" />
+      <img data-key="farmer4Banner" src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=1200&q=80" alt="Bukidnon Highlands Banner" />
+      <img data-key="farmer4Gallery1" src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=600&q=80" alt="Bukidnon Gallery 1" />
+      <img data-key="farmer4Gallery2" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80" alt="Bukidnon Gallery 2" />
+      <img data-key="farmer4Gallery3" src="https://images.unsplash.com/photo-1553279768-4653b0999a88?auto=format&fit=crop&w=600&q=80" alt="Bukidnon Gallery 3" />
+      <img data-key="farmer4Gallery4" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80" alt="Bukidnon Gallery 4" />
+
+      <!-- Farmer 5: Ka Luming Mendoza -->
+      <img data-key="farmer5Photo" src="/farmers/Rosa.png" alt="Ka Rosa" />
+      <img data-key="farmer5Banner" src="https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=1200&q=80" alt="Davao Cacao Agroforest Banner" />
+      <img data-key="farmer5Gallery1" src="https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=600&q=80" alt="Davao Gallery 1" />
+      <img data-key="farmer5Gallery2" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80" alt="Davao Gallery 2" />
+      <img data-key="farmer5Gallery3" src="https://images.unsplash.com/photo-1517424424660-fef77b78ca90?auto=format&fit=crop&w=600&q=80" alt="Davao Gallery 3" />
+      <img data-key="farmer5Gallery4" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80" alt="Davao Gallery 4" />
+
+      <!-- FARM TOURS (PLACES) & GALLERY THUMBNAILS -->
+      <!-- Tour 1: Sunnyvale Farm Heritage Agro-Trail -->
+      <img data-key="tour1Image" src="https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=1000&q=80" alt="Sunnyvale Farm Heritage Agro-Trail" />
+      <img data-key="tour1Thumb1" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=400&q=80" alt="Sunnyvale Thumb 1" />
+      <img data-key="tour1Thumb2" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80" alt="Sunnyvale Thumb 2" />
+      <img data-key="tour1Thumb3" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80" alt="Sunnyvale Thumb 3" />
+      <img data-key="tour1Thumb4" src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=400&q=80" alt="Sunnyvale Thumb 4" />
+
+      <!-- Tour 2: Golden Sunflower & Honeycomb Sanctuary -->
+      <img data-key="tour2Image" src="https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=1000&q=80" alt="Golden Sunflower & Honeycomb Sanctuary" />
+      <img data-key="tour2Thumb1" src="https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=400&q=80" alt="Sunflower Thumb 1" />
+      <img data-key="tour2Thumb2" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80" alt="Sunflower Thumb 2" />
+      <img data-key="tour2Thumb3" src="https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=400&q=80" alt="Sunflower Thumb 3" />
+      <img data-key="tour2Thumb4" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80" alt="Sunflower Thumb 4" />
+
+      <!-- Tour 3: Laurel Ridge Taal Overlook & Cacao Forest -->
+      <img data-key="tour3Image" src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=1000&q=80" alt="Laurel Ridge Taal Overlook & Cacao Forest" />
+      <img data-key="tour3Thumb1" src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=400&q=80" alt="Laurel Thumb 1" />
+      <img data-key="tour3Thumb2" src="https://images.unsplash.com/photo-1544965850-6f8a66788f9b?auto=format&fit=crop&w=400&q=80" alt="Laurel Thumb 2" />
+      <img data-key="tour3Thumb3" src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=400&q=80" alt="Laurel Thumb 3" />
+      <img data-key="tour3Thumb4" src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=400&q=80" alt="Laurel Thumb 4" />
+
+      <!-- Tour 4: Banaue Ancestral Rice Terraces Cultural Trail -->
+      <img data-key="tour4Image" src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=1000&q=80" alt="Banaue Ancestral Rice Terraces Cultural Trail" />
+      <img data-key="tour4Thumb1" src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=400&q=80" alt="Banaue Thumb 1" />
+      <img data-key="tour4Thumb2" src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80" alt="Banaue Thumb 2" />
+      <img data-key="tour4Thumb3" src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=400&q=80" alt="Banaue Thumb 3" />
+      <img data-key="tour4Thumb4" src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=400&q=80" alt="Banaue Thumb 4" />
+
+      <!-- Tour 5: Riverside Bamboo Agritrail & Waterway Haven -->
+      <img data-key="tour5Image" src="https://images.unsplash.com/photo-1500076656116-558758c991c1?auto=format&fit=crop&w=1000&q=80" alt="Riverside Bamboo Agritrail & Waterway Haven" />
+      <img data-key="tour5Thumb1" src="https://images.unsplash.com/photo-1500076656116-558758c991c1?auto=format&fit=crop&w=400&q=80" alt="Riverside Thumb 1" />
+      <img data-key="tour5Thumb2" src="https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=400&q=80" alt="Riverside Thumb 2" />
+      <img data-key="tour5Thumb3" src="https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=80" alt="Riverside Thumb 3" />
+      <img data-key="tour5Thumb4" src="https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=400&q=80" alt="Riverside Thumb 4" />
+
+      <!-- Tour 6: Green Valley Herbal Sanctuary & Organic Farm -->
+      <img data-key="tour6Image" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80" alt="Green Valley Herbal Sanctuary & Organic Farm" />
+      <img data-key="tour6Thumb1" src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80" alt="Green Valley Thumb 1" />
+      <img data-key="tour6Thumb2" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80" alt="Green Valley Thumb 2" />
+      <img data-key="tour6Thumb3" src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=400&q=80" alt="Green Valley Thumb 3" />
+      <img data-key="tour6Thumb4" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80" alt="Green Valley Thumb 4" />
+
+      <!-- FRUIT PICKING ORCHARDS & THUMBNAILS -->
+      <!-- Fruit Picking 1: Sunnyvale Farm Citrus -->
+      <img data-key="fruit1Image" src="https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?auto=format&fit=crop&w=1000&q=80" alt="Sweet Dalanghita & Valencia Orange Orchard Harvest" />
+      <img data-key="fruit1Thumb1" src="https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?auto=format&fit=crop&w=400&q=80" alt="Orange Harvest 1" />
+      <img data-key="fruit1Thumb2" src="https://images.unsplash.com/photo-1582979512210-99b6a53386f9?auto=format&fit=crop&w=400&q=80" alt="Orange Harvest 2" />
+      <img data-key="fruit1Thumb3" src="https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80" alt="Orange Harvest 3" />
+      <img data-key="fruit1Thumb4" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80" alt="Orange Harvest 4" />
+
+      <!-- Fruit Picking 2: Benguet Berry Haven -->
+      <img data-key="fruit2Image" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=1000&q=80" alt="Highland Sweet Strawberry Harvest Festival" />
+      <img data-key="fruit2Thumb1" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=400&q=80" alt="Strawberry Harvest 1" />
+      <img data-key="fruit2Thumb2" src="https://images.unsplash.com/photo-1518635017498-87f514b751ba?auto=format&fit=crop&w=400&q=80" alt="Strawberry Harvest 2" />
+      <img data-key="fruit2Thumb3" src="https://images.unsplash.com/photo-1543158266-0066955047b1?auto=format&fit=crop&w=400&q=80" alt="Strawberry Harvest 3" />
+      <img data-key="fruit2Thumb4" src="https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&w=400&q=80" alt="Strawberry Harvest 4" />
+
+      <!-- Fruit Picking 3: Golden Carabao Mango -->
+      <img data-key="fruit3Image" src="https://images.unsplash.com/photo-1553279768-4653b0999a88?auto=format&fit=crop&w=1000&q=80" alt="Golden Carabao Mango Tree-to-Basket Harvest" />
+      <img data-key="fruit3Thumb1" src="https://images.unsplash.com/photo-1553279768-4653b0999a88?auto=format&fit=crop&w=400&q=80" alt="Mango Harvest 1" />
+      <img data-key="fruit3Thumb2" src="https://images.unsplash.com/photo-1601493700631-2b16ec4b4716?auto=format&fit=crop&w=400&q=80" alt="Mango Harvest 2" />
+      <img data-key="fruit3Thumb3" src="https://images.unsplash.com/photo-1591073113125-e46713c829ed?auto=format&fit=crop&w=400&q=80" alt="Mango Harvest 3" />
+      <img data-key="fruit3Thumb4" src="https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=400&q=80" alt="Mango Harvest 4" />
+
+      <!-- Fruit Picking 4: Laurel Ridge Dragon Fruit -->
+      <img data-key="fruit4Image" src="https://images.unsplash.com/photo-1527324688151-0e627063f2b1?auto=format&fit=crop&w=1000&q=80" alt="Radiant Magenta Dragon Fruit & Passionfruit Trellis" />
+      <img data-key="fruit4Thumb1" src="https://images.unsplash.com/photo-1527324688151-0e627063f2b1?auto=format&fit=crop&w=400&q=80" alt="Dragon Fruit 1" />
+      <img data-key="fruit4Thumb2" src="https://images.unsplash.com/photo-1588615419957-66a9d72491a6?auto=format&fit=crop&w=400&q=80" alt="Dragon Fruit 2" />
+      <img data-key="fruit4Thumb3" src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=400&q=80" alt="Dragon Fruit 3" />
+      <img data-key="fruit4Thumb4" src="https://images.unsplash.com/photo-1587735243615-c03f25aaff15?auto=format&fit=crop&w=400&q=80" alt="Dragon Fruit 4" />
+
+      <!-- Fruit Picking 5: Rambutan & Lanzones -->
+      <img data-key="fruit5Image" src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=1000&q=80" alt="Sweet Rambutan & Lanzones Cluster Harvest" />
+      <img data-key="fruit5Thumb1" src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80" alt="Rambutan Harvest 1" />
+      <img data-key="fruit5Thumb2" src="https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=400&q=80" alt="Rambutan Harvest 2" />
+      <img data-key="fruit5Thumb3" src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=400&q=80" alt="Rambutan Harvest 3" />
+      <img data-key="fruit5Thumb4" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80" alt="Rambutan Harvest 4" />
+
+      <!-- Fruit Picking 6: Silang Papaya & Guava -->
+      <img data-key="fruit6Image" src="https://images.unsplash.com/photo-1517424424660-fef77b78ca90?auto=format&fit=crop&w=1000&q=80" alt="Bountiful Golden Papaya & Guava Grove Harvest" />
+      <img data-key="fruit6Thumb1" src="https://images.unsplash.com/photo-1617112848923-cc2234396a8d?auto=format&fit=crop&w=400&q=80" alt="Papaya Harvest 1" />
+      <img data-key="fruit6Thumb2" src="https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=400&q=80" alt="Papaya Harvest 2" />
+      <img data-key="fruit6Thumb3" src="https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=400&q=80" alt="Papaya Harvest 3" />
+      <img data-key="fruit6Thumb4" src="https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=400&q=80" alt="Papaya Harvest 4" />
+
+      <!-- FARM PRODUCE & MARKETPLACE PRODUCTS -->
+      <img data-key="product101Image" src="https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=600&q=80" alt="Organic Ampalaya (Bitter Gourd)" />
+      <img data-key="product102Image" src="https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=600&q=80" alt="Crisp Baguio Lettuce & Romaine" />
+      <img data-key="product103Image" src="https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80" alt="Plump Native Kamatis (Tomatoes)" />
+      <img data-key="product104Image" src="https://images.unsplash.com/photo-1506807803488-8eafc15316c6?auto=format&fit=crop&w=600&q=80" alt="Fresh Sitaw & Organic Kalabasa Bundle" />
+      <img data-key="product105Image" src="https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=600&q=80" alt="Highland Sweet Carrots & Broccoli" />
+      <img data-key="product106Image" src="https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80" alt="Purple Eggplant (Talong Tagalog)" />
+      <img data-key="product107Image" src="https://images.unsplash.com/photo-1553279768-4653b0999a88?auto=format&fit=crop&w=600&q=80" alt="Sweet Carabao Mangoes (Grade A)" />
+      <img data-key="product108Image" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=600&q=80" alt="Fresh Highland Strawberries" />
+      <img data-key="product109Image" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80" alt="Pure Wild Forest Honey" />
+      <img data-key="product110Image" src="https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=600&q=80" alt="Crispy Saba Banana Chips" />
+      <img data-key="product111Image" src="https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80" alt="Benguet Mountain Arabica Beans" />
+      <img data-key="product112Image" src="https://images.unsplash.com/photo-1550258987-190a2d41a8ba?auto=format&fit=crop&w=600&q=80" alt="Bukidnon Sweet Golden Queen Pineapple" />
+      <img data-key="product113Image" src="https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=600&q=80" alt="Davao Single-Origin Artisan Tablea" />
+      <img data-key="product114Image" src="https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=600&q=80" alt="Fresh Valencia Sweet Oranges" />
+      <img data-key="product115Image" src="https://images.unsplash.com/photo-1527324688151-0e627063f2b1?auto=format&fit=crop&w=600&q=80" alt="Organic Red Dragonfruit (Pitaya)" />
+      <img data-key="product116Image" src="https://images.unsplash.com/photo-1517424424660-fef77b78ca90?auto=format&fit=crop&w=600&q=80" alt="Fresh Purple Mangosteen" />
+
+      <!-- FARMER ADD-PRODUCT PRESETS -->
+      <img data-key="presetMangoImage" src="https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=600&q=80" alt="Preset Carabao Mango" />
+      <img data-key="presetTomatoImage" src="https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80" alt="Preset Organic Tomatoes" />
+      <img data-key="presetPapayaImage" src="https://images.unsplash.com/photo-1617112848923-cc2234396a8d?auto=format&fit=crop&w=600&q=80" alt="Preset Sweet Papaya" />
+      <img data-key="presetStrawberryImage" src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=600&q=80" alt="Preset Strawberries" />
+      <img data-key="presetHoneyImage" src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80" alt="Preset Wild Honey" />
+      <img data-key="presetEggplantImage" src="https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80" alt="Preset Fresh Eggplant" />
+    </template>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
