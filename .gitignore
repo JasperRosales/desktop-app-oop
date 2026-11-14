@@ -1,9 +1,10 @@
-node_modules/
 build/
-dist/
-coverage/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+out/
+*.db
 .DS_Store
 *.log
-.env*
-!.env.example
-.aistudio/
+local.properties

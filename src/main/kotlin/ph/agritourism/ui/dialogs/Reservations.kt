@@ -1,0 +1,316 @@
+package ph.agritourism.ui.dialogs
+
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ph.agritourism.model.Booking
+import ph.agritourism.model.Role
+import ph.agritourism.ui.*
+
+@Composable
+internal fun Gallery(images: List<String>) = Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    images.forEach { AsyncImage(it, Modifier.weight(1f).height(80.dp).clip(RoundedCornerShape(12.dp))) }
+}
+
+@Composable
+private fun HeroImage(src: String, tag: String, onClose: () -> Unit) {
+    Box(Modifier.fillMaxWidth().height(240.dp)) {
+        AsyncImage(src, Modifier.fillMaxSize())
+        IconButton(onClose, Modifier.align(Alignment.TopEnd).padding(10.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.9f))) { Icon(Icons.Filled.Close, "Close") }
+        Pill("📍 $tag", Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.BottomStart).padding(14.dp))
+    }
+}
+
+@Composable
+private fun TotalBox(left: String, payment: String, total: Int) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.Mint).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) { Text(left, fontSize = 13.sp, fontWeight = FontWeight.Bold); Text(payment, fontSize = 11.sp, color = Palette.Muted) }
+        Column(horizontalAlignment = Alignment.End) { Label("Automatic Total Calculation:"); Text("$PESO${money(total)}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest) }
+    }
+}
+
+@Composable
+internal fun TourModal(s: AppState) {
+    val t = s.selectedTour
+    val close = { s.isTourModalOpen = false }
+    Modal(close, 760.dp) {
+        HeroImage(t.imageUrl, t.location, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(t.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
+                    Row(verticalAlignment = Alignment.CenterVertically) { Sub("📍 ${t.location} • "); RatingText(t.rating, t.reviewsCount); Sub(" • "); Pill(t.highlightTag) }
+                }
+                Text("$PESO${t.pricePerPerson}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest); Text(" /person", color = Palette.Muted)
+            }
+            Text(t.description, fontSize = 13.sp, color = Color(0xFF334155))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile("Operating Hours", t.operatingHours, Icons.Outlined.Schedule, Modifier.weight(1f))
+                InfoTile("Amenities", t.amenities.joinToString(), Icons.Outlined.VerifiedUser, Modifier.weight(1f))
+                InfoTile("Activities", t.activities.joinToString(), Icons.Outlined.AutoAwesome, Modifier.weight(1f))
+            }
+            Row { Label("Tour Gallery Photo Highlights"); Spacer(Modifier.weight(1f)); Label("${t.thumbnails.size} Photos") }
+            Gallery(t.thumbnails)
+            HorizontalDivider(color = Palette.Border)
+            Text("📅 Customize Your Tour Booking", fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DateField("Tour Schedule Date", s.tourDate, { s.tourDate = it }, Modifier.weight(1f))
+                Dropdown("Select Time Slot", TOUR_TIME_SLOTS, s.tourTime, { it }, Modifier.weight(1f)) { s.tourTime = it }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Label("Number of Persons / Guests"); Sub("Family and group passes automatically adjusted") }
+                Stepper(s.tourGuests, "Pax") { s.tourGuests = it }
+            }
+            Label("Select Tour Payment Method")
+            ChoiceRow(listOf("GCash", "Maya", "Bank Transfer", "Pay at Farm"), s.tourPaymentMethod) { s.tourPaymentMethod = it }
+            TotalBox("$PESO${t.pricePerPerson} × ${s.tourGuests} ${if (s.tourGuests == 1) "person" else "persons"}", "Payment via ${s.tourPaymentMethod}", t.pricePerPerson * s.tourGuests)
+            PrimaryButton("Confirm Tour Booking & Pay · $PESO${money(t.pricePerPerson * s.tourGuests)}", Modifier.fillMaxWidth(), Icons.Outlined.EventAvailable,
+                enabled = isValidDate(s.tourDate)) { s.bookSelectedTour() }
+        }
+    }
+}
+
+@Composable
+internal fun FruitModal(s: AppState) {
+    val f = s.selectedFruit
+    val close = { s.isFruitModalOpen = false }
+    Modal(close, 760.dp) {
+        HeroImage(f.imageUrl, f.location, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(f.title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
+            Text("${f.farmName} · ${f.seasonAvailability}", fontSize = 13.sp, color = Palette.Forest, fontWeight = FontWeight.Bold)
+            Text(f.description, fontSize = 13.sp, color = Color(0xFF334155))
+            Row { Label("Fruit Picking Gallery Photos"); Spacer(Modifier.weight(1f)); Label("${f.thumbnails.size} Photos") }
+            Gallery(f.thumbnails)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("✅ Includes harvest basket and dedicated farm guide", fontSize = 13.sp)
+                Text("✓ Duration: ${f.duration}", fontSize = 13.sp)
+                Text("✓ Available seasonal fruits: ${f.seasonalFruits}", fontSize = 13.sp)
+            }
+            HorizontalDivider(color = Palette.Border)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DateField("Select Date", s.fruitDate, { s.fruitDate = it }, Modifier.weight(1f))
+                Dropdown("Select Time Slot", FRUIT_TIME_SLOTS, s.fruitTime, { it }, Modifier.weight(1f)) { s.fruitTime = it }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Label("Number of Fruit Pickers"); Sub("Includes individual harvesting basket") }
+                Stepper(s.fruitGuests, "Pax") { s.fruitGuests = it }
+            }
+            Label("Select Fruit Picking Payment Method")
+            ChoiceRow(listOf("GCash", "Maya", "Bank Transfer", "Pay at Farm"), s.fruitPaymentMethod) { s.fruitPaymentMethod = it }
+            TotalBox("$PESO${f.pricePerPerson} × ${s.fruitGuests} ${if (s.fruitGuests == 1) "picker" else "pickers"}", "Payment via ${s.fruitPaymentMethod}", f.pricePerPerson * s.fruitGuests)
+            PrimaryButton("Confirm Fruit Picking Booking · $PESO${money(f.pricePerPerson * s.fruitGuests)}", Modifier.fillMaxWidth(), Icons.Outlined.AutoAwesome,
+                enabled = isValidDate(s.fruitDate)) { s.bookSelectedFruit() }
+        }
+    }
+}
+
+@Composable
+internal fun BookingDossier(s: AppState, b0: Booking) {
+    val b = s.bookings.firstOrNull { it.id == b0.id } ?: b0
+    val close = { s.selectedBookingForView = null }
+    val farmer = s.userRole == Role.FARMER
+    Modal(close, 720.dp) {
+        ModalHeader(if (farmer) "Tourist Reservation Dossier" else "Tourist E-Ticket & Pass", "Official AgriTourism Tour Voucher", Icons.Outlined.Eco, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Pill(b.bookingCode, Palette.Deep, Color.White)
+                    Text(b.farmName, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep); Sub(b.activity)
+                }
+                Column(horizontalAlignment = Alignment.End) { StatusPill(b.status); Text("$PESO${money(b.totalAmount)}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile("Tour Date", b.tourDate, Icons.Outlined.CalendarMonth, Modifier.weight(1f))
+                InfoTile("Scheduled Time", b.tourTime, Icons.Outlined.Schedule, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile("Tourist / Guest", b.customerName, Icons.Outlined.Person, Modifier.weight(1f))
+                InfoTile("Group Size", "${b.participants} Persons", Icons.Outlined.Groups, Modifier.weight(1f))
+            }
+            InfoTile("Tourist Contact Information", "📞 ${b.customerPhone ?: "+63 917 555 0192"}   ✉ ${b.customerEmail ?: "tourist@agritourism.ph"}", modifier = Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Label("1-Day Attendance Confirmation"); Text(b.attendanceStatus ?: "Pending Confirmation", fontWeight = FontWeight.Bold) }
+                if (b.attendanceStatus == "Pending Confirmation") {
+                    PrimaryButton("Confirm Yes") { s.attendanceConfirmation(b.id, true) }; Spacer(Modifier.width(6.dp))
+                    SecondaryButton("No", color = Palette.Red) { s.attendanceConfirmation(b.id, false) }
+                }
+            }
+            Row { Text("📄 Tourist Uploaded Documents & Dossier", fontWeight = FontWeight.ExtraBold, color = Palette.Deep); Spacer(Modifier.weight(1f)); Pill("DOT Verified Guest") }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile("Uploaded Valid ID", b.uploadedIdDoc ?: "Philippine National ID · Verified Eco-Tourist", Icons.Outlined.VerifiedUser, Modifier.weight(1f))
+                InfoTile("Payment Verification Proof", b.uploadedReceiptDoc ?: "GCash Reference Receipt · ₱500.00 Verified", Icons.Outlined.CreditCard, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile("Special Requests & Notes", b.specialRequests ?: "No special dietary or accessibility requests.", modifier = Modifier.weight(1f))
+                InfoTile("Assigned Tour Guide", b.assignedGuide ?: "Kuya Noel (Master Horticulturist)", Icons.Outlined.Explore, Modifier.weight(1f))
+            }
+            if (farmer) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF0FDF4)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row { Text("Farmer Host Gate Controls", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold); Pill("Status: ${b.attendanceStatus ?: "Pending"}", Color.White) }
+                    if (b.attendanceStatus == "Arrived & Checked In") Text("✓ Tourist has arrived & Gate Check-In is recorded! ${b.checkedInAt ?: "Verified Today"}", color = Color(0xFF166534), fontWeight = FontWeight.Bold)
+                    else PrimaryButton("Mark Tourist as Arrived (Gate Check-In)", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
+                    val guide = b.assignedGuide ?: DOSSIER_GUIDES.first()
+                    Dropdown("Assign Guide:", (listOf(guide) + DOSSIER_GUIDES).distinct(), guide, { it }) { s.assignGuide(b.id, it) }
+                }
+            }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, Palette.Border, RoundedCornerShape(14.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("AgriTourism QR Check-in"); Text("Show this code at the farm entrance", fontWeight = FontWeight.Bold)
+                    Sub("Verified by Department of Tourism Accredited Hosts")
+                }
+                QrGlyph()
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Save / Print Ticket", icon = Icons.Outlined.Download) { Printing.openHtml("voucher-${b.bookingCode}.html", Printing.bookingDossierHtml(b)) }
+                SecondaryButton("Close") { close() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrGlyph() {
+    val bits = listOf(1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1)
+    Column(Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)).border(2.dp, Palette.Deep, RoundedCornerShape(8.dp)).padding(6.dp)) {
+        bits.chunked(4).forEach { row ->
+            Row(Modifier.weight(1f)) { row.forEach { Box(Modifier.weight(1f).fillMaxHeight().padding(1.dp).background(if (it == 1) Palette.Deep else Color.White)) } }
+        }
+    }
+}
+
+@Composable
+internal fun OrderDossier(s: AppState, id: String) {
+    val o = s.farmerOrders.firstOrNull { it.id == id } ?: return
+    val close = { s.selectedOrderForView = null }
+    Modal(close, 680.dp) {
+        ModalHeader("Produce Order Dossier #${o.orderNumber}", "Tourist Order & GCash Verification", Icons.Outlined.Inventory2, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) { Label("Customer"); Text(o.customerName, fontWeight = FontWeight.ExtraBold); Sub(o.customerPhone); Sub(o.customerAddress) }
+                Column(horizontalAlignment = Alignment.End) { Label("Fulfillment Status"); StatusPill(o.fulfillmentStatus); Text("$PESO${money(o.totalAmount)}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest) }
+            }
+            o.specialDeliveryNotes?.let { Text("Delivery Note: $it", fontSize = 12.sp, color = Color(0xFF92400E)) }
+            Label("Ordered Items:")
+            o.items.forEach { Row { Text("${it.productName} × ${it.qty}", Modifier.weight(1f), fontSize = 13.sp); Text("$PESO${money(it.qty * it.unitPrice)}", fontWeight = FontWeight.Bold) } }
+            Row { Label("Tourist Uploaded GCash Payment Proof"); Spacer(Modifier.weight(1f)); Pill("✓ Payment Verified", Color(0xFFDCFCE7), Color(0xFF166534)) }
+            AsyncImage(o.uploadedReceiptUrl, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)), ContentScale.Fit, "Uploaded Receipt")
+            Label("Update Order Status:")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Pending Packing" to "Packing", "Dispatched" to "Dispatched", "Delivered" to "Delivered").forEach { (st, l) ->
+                    if (o.fulfillmentStatus == st) PrimaryButton(l) { s.orderStatusUpdate(o.id, st) } else SecondaryButton(l) { s.orderStatusUpdate(o.id, st) }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Print Order Dossier", icon = Icons.Outlined.Print) { Printing.openHtml("order-${o.orderNumber}.html", Printing.orderHtml(listOf(o), "Produce Order Dossier #${o.orderNumber}")) }
+                SecondaryButton("Close") { close() }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TrackingInspector(s: AppState, id: String) {
+    val o = s.farmerOrders.firstOrNull { it.id == id } ?: return
+    val close = { s.selectedOrderForTracking = null }
+    Modal(close, 680.dp) {
+        ModalHeader("Logistics & Route Inspection #${o.orderNumber}", "Farmer Courier Tracking & Handover", Icons.Outlined.LocalShipping, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                InfoTile("Courier Carrier & Rider", "${o.riderName ?: "Kuya Jun-Jun Ramos"}\n${o.courierName ?: "AgriExpress Direct Fleet"}\n${o.riderVehicle ?: "Yamaha NMAX · Plate DA 7192"}", modifier = Modifier.weight(1f))
+                InfoTile("Tourist Recipient", "${o.customerName}\n${o.customerPhone}\n${o.trackingNumber ?: ""}", modifier = Modifier.weight(1f))
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEFF6FF)).padding(14.dp)) {
+                Label("Live Courier Location:"); Text("🧭 ${o.currentLocation ?: "In Transit: En route to destination"}", fontWeight = FontWeight.Bold)
+                Text("Estimated Arrival: ${o.estimatedArrival ?: "15-20 mins away"}", fontSize = 12.sp)
+            }
+            if (o.isReceivedByUser) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFDCFCE7)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Package Successfully Handed Over & Received", fontWeight = FontWeight.ExtraBold, color = Color(0xFF166534))
+                        Text("Verified by ${o.receivedByRecipient ?: o.customerName} on ${o.receivedAt ?: o.orderDate}", fontSize = 12.sp)
+                    }
+                    Pill("Confirmed", Palette.Forest, Color.White)
+                }
+            } else {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Tourist Has Not Yet Confirmed Receipt", fontWeight = FontWeight.ExtraBold)
+                        Text("Package is en route. Tourist will inspect and verify upon rider arrival.", fontSize = 12.sp)
+                    }
+                    PrimaryButton("Mark as Received by Tourist") { s.confirmOrderReceived(o.id) }
+                }
+            }
+            Label("Delivery Route Steps:")
+            o.deliverySteps.forEachIndexed { i, st ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (st.completed) "✓" else "${i + 1}", Modifier.width(24.dp), fontWeight = FontWeight.Bold, color = if (st.completed) Palette.Forest else Palette.Muted)
+                    Text(st.title, Modifier.weight(1f), fontSize = 13.sp); Text(st.timestamp, fontSize = 11.sp, color = Palette.Muted)
+                }
+            }
+            Label("Advance Courier Position / Location:")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton("SLEX Corridor (In Transit)") { s.updateDeliveryLocation(o.id, "SLEX Alabang Corridor · En route north", "Dispatched") }
+                SecondaryButton("Nearby Destination (1 km)") { s.updateDeliveryLocation(o.id, "Approaching Destination: Within 1 km radius", "Dispatched") }
+            }
+            PrimaryButton("Close Tracking Inspector", Modifier.fillMaxWidth()) { close() }
+        }
+    }
+}
+
+@Composable
+internal fun EditBookingModal(s: AppState, e: Booking) {
+    val close = { s.editingBooking = null }
+    Modal(close, 520.dp) {
+        ModalHeader("Reschedule Tour & Guests", "Update Reservation #${e.bookingCode}", Icons.Outlined.Edit, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Field("Farm Destination", e.farmName, {}, enabled = false)
+            // Seeded bookings use "Nov 20, 2026" display dates; editing normalises them to ISO like the original form did.
+            val dateValue = if (e.tourDate.contains("-")) e.tourDate else "2026-11-20"
+            DateField("Tour Date", dateValue, { s.editingBooking = e.copy(tourDate = it) })
+            val cur = RESCHEDULE_SLOTS.firstOrNull { it.first == e.tourTime } ?: (e.tourTime to e.tourTime)
+            Dropdown("Time Slot", (listOf(cur) + RESCHEDULE_SLOTS).distinct(), cur, { it.second }) { s.editingBooking = e.copy(tourTime = it.first) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("Number of Guests")
+                    Stepper(e.participants, "Guests") { n ->
+                        val per = e.totalAmount.toDouble() / e.participants
+                        s.editingBooking = e.copy(participants = n, totalAmount = Math.round(per * n).toInt())
+                    }
+                }
+                Text("Total: $PESO${money(e.totalAmount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Save Updated Schedule", Modifier.weight(1f), enabled = isValidDate(dateValue)) {
+                    s.editingBooking = e.copy(tourDate = dateValue)
+                    s.saveEditedBooking()
+                }
+                SecondaryButton("Cancel") { close() }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeleteConfirm(s: AppState, id: Long) {
+    AlertDialog({ s.deletingBookingId = null },
+        icon = { Icon(Icons.Outlined.Delete, null, tint = Palette.Red) },
+        title = { Text("Delete this reservation?") },
+        text = { Text("This will permanently delete this booking from your list. Are you sure you want to proceed?") },
+        confirmButton = { PrimaryButton("Yes, Delete", color = Palette.Red) { s.deleteBooking(id) } },
+        dismissButton = { SecondaryButton("Keep Booking") { s.deletingBookingId = null } })
+}
