@@ -14,6 +14,7 @@ Requires JDK 17+.
 ```bash
 ./gradlew run                 # launch the app
 ./gradlew packageDistributionForCurrentOS   # build an installer (msi/exe/dmg/deb)
+./gradlew releaseArtifacts    # installer(s) + seeded database in build/release
 ```
 
 ## Data
@@ -23,6 +24,8 @@ Requires JDK 17+.
   products, bookings, orders, reviews, notifications, cart, favorites, users).
 - Delete the `.db` file to reset to the original sample data.
 - Admins can inspect/query tables in **View → SQL Database Studio**.
+- Release builds also attach a pre-seeded `agritourism.db` to the GitHub release. Point
+  `AGRITOURISM_DB` at that file to run the app against it.
 
 ## Images
 

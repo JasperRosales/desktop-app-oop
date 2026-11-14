@@ -50,3 +50,36 @@ compose.desktop {
         }
     }
 }
+
+val releaseDir = layout.buildDirectory.dir("release")
+
+/** Generates the seeded SQLite database that ships with release artifacts. */
+val seedDatabase by tasks.registering(JavaExec::class) {
+    group = "distribution"
+    description = "Generates a pre-seeded agritourism.db for release artifacts."
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ph.agritourism.tools.SeedDatabaseKt")
+    args(releaseDir.get().file("agritourism.db").asFile.absolutePath)
+}
+
+/** Builds the native installer plus the seeded database into build/release. */
+val releaseArtifacts by tasks.registering {
+    group = "distribution"
+    description = "Builds the native installer and seeded database for a GitHub release."
+    // packageExe works without WiX; MSI packaging on Windows requires the WiX 3 toolset.
+    dependsOn(tasks.named("packageExe"), seedDatabase)
+    doLast {
+        val out = releaseDir.get().asFile
+        out.mkdirs()
+        copy {
+            from(layout.buildDirectory.dir("compose/binaries/main")) {
+                include("exe/*.exe", "msi/*.msi")
+            }
+            into(out)
+            eachFile { path = name }
+            includeEmptyDirs = false
+        }
+        out.listFiles()?.sortedBy { it.name }?.forEach { println("release artifact: ${it.name} (${it.length()} bytes)") }
+    }
+}
