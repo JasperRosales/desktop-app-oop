@@ -72,6 +72,8 @@ jobs:
           $version = "${{ steps.version.outputs.version }}"
           $exe = Get-ChildItem -Path build/release -Filter *.exe | Select-Object -First 1
           $db = Get-Item build/release/agritourism.db
+          # GitHub replaces spaces with dots in uploaded asset names.
+          $exeAssetName = $exe.Name -replace ' ', '.'
 
           $notes = gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" `
             -f tag_name=$tag `
@@ -82,7 +84,7 @@ jobs:
           $notes
 
           ### Release assets
-          - **$($exe.Name)** — self-contained Windows installer; no JDK required.
+          - **$exeAssetName** — self-contained Windows installer; no JDK required.
           - **$($db.Name)** — pre-seeded SQLite database. Set ``AGRITOURISM_DB`` to its path to run against it.
           "@ | Set-Content -Path release-notes.md -Encoding utf8
 
