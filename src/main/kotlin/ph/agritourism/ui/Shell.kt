@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuOpen
+import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -54,7 +56,7 @@ private fun TopBar(s: AppState) {
     Row(Modifier.fillMaxWidth().height(60.dp).background(Color.White.copy(alpha = 0.96f)).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton({ s.isSidebarCollapsed = !s.isSidebarCollapsed }, Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, Palette.Border, RoundedCornerShape(10.dp))) {
-            Icon(if (s.isSidebarCollapsed) Icons.Outlined.ViewSidebar else Icons.Outlined.MenuOpen, "Toggle sidebar", tint = Palette.Ink)
+            Icon(if (s.isSidebarCollapsed) Icons.AutoMirrored.Outlined.ViewSidebar else Icons.AutoMirrored.Outlined.MenuOpen, "Toggle sidebar", tint = Palette.Ink)
         }
         Spacer(Modifier.width(12.dp))
         Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { s.navigate(if (s.isLoggedIn) Page.DASHBOARD else Page.HOME) }.padding(4.dp),
