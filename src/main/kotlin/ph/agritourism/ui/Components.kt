@@ -15,7 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -46,15 +48,22 @@ val AppColors = lightColorScheme(
     primaryContainer = Palette.Mint, onPrimaryContainer = Palette.Deep, error = Palette.Red,
 )
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, padding: Dp = 20.dp, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    var hovered by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(20.dp)
+    val elevation by androidx.compose.animation.core.animateDpAsState(if (hovered && onClick != null) 14.dp else 6.dp, label = "card-elev")
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (hovered && onClick != null) 1.015f else 1f, label = "card-scale")
     Column(
         modifier
-            .shadow(6.dp, shape, ambientColor = Color(0x22000000), spotColor = Color(0x22000000))
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter) { hovered = true }
+            .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Exit) { hovered = false }
+            .shadow(elevation, shape, ambientColor = Color(0x22000000), spotColor = Color(0x22000000))
             .clip(shape)
             .background(Palette.Glass)
-            .border(1.dp, Color(0xFFE5ECE6), shape)
+            .border(1.dp, if (hovered && onClick != null) Palette.Forest.copy(alpha = 0.25f) else Color(0xFFE5ECE6), shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(padding),
         content = content,

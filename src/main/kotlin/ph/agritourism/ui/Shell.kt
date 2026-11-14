@@ -204,13 +204,15 @@ private fun Sidebar(s: AppState) {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun NavItem(icon: ImageVector, label: String, active: Boolean, expanded: Boolean, badge: String?, onClick: () -> Unit) {
+    val bg by androidx.compose.animation.animateColorAsState(if (active) Palette.Forest else Color.Transparent, label = "nav-bg")
+    val fg by androidx.compose.animation.animateColorAsState(if (active) Color.White else Palette.Ink, label = "nav-fg")
     TooltipArea(tooltip = { if (!expanded) Surface(shape = RoundedCornerShape(8.dp), color = Palette.Deep) { Text(label, Modifier.padding(8.dp), color = Color.White, fontSize = 12.sp) } }) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (active) Palette.Forest else Color.Transparent)
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg)
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, label, Modifier.size(20.dp), tint = if (active) Color.White else Palette.Ink)
+            Icon(icon, label, Modifier.size(20.dp), tint = fg)
             if (expanded) {
                 Spacer(Modifier.width(14.dp))
-                Text(label, Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (active) Color.White else Palette.Ink,
+                Text(label, Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = fg,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (badge != null) Pill(badge, if (active) Color.White.copy(alpha = 0.2f) else Palette.Mint, if (active) Color.White else Palette.Forest)
             }
@@ -222,30 +224,39 @@ private fun NavItem(icon: ImageVector, label: String, active: Boolean, expanded:
 private fun PageContent(s: AppState) {
     val scroll = rememberScrollState()
     LaunchedEffect(s.activePage) { scroll.scrollTo(0) }
-    val p = s.activePage
-    val farmerBlocked = s.userRole == Role.FARMER && p in setOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES)
-    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        when {
-            farmerBlocked -> FarmerRestrictionNotice(s)
-            p == Page.DASHBOARD -> when (s.userRole) {
-                Role.ADMIN -> AdminDashboard(s)
-                Role.FARMER -> FarmerDashboard(s)
-                Role.USER -> TouristDashboard(s)
+    AnimatedContent(
+        targetState = s.activePage,
+        transitionSpec = {
+            (fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) +
+                slideInVertically(animationSpec = androidx.compose.animation.core.tween(220)) { it / 24 }) togetherWith
+                fadeOut(animationSpec = androidx.compose.animation.core.tween(140))
+        },
+        label = "page",
+    ) { p ->
+        val farmerBlocked = s.userRole == Role.FARMER && p in setOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES)
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            when {
+                farmerBlocked -> FarmerRestrictionNotice(s)
+                p == Page.DASHBOARD -> when (s.userRole) {
+                    Role.ADMIN -> AdminDashboard(s)
+                    Role.FARMER -> FarmerDashboard(s)
+                    Role.USER -> TouristDashboard(s)
+                }
+                p == Page.FARM_DETAIL -> ExploreTours(s)
+                p == Page.FRUIT_PICKING -> FruitPickingPage(s)
+                p == Page.MARKET -> MarketPage(s)
+                p == Page.FARMERS_STORIES -> FarmersStoriesPage(s)
+                p == Page.CART_CHECKOUT -> CheckoutPage(s)
+                p == Page.ORDER_TRACKING -> OrderTrackingPage(s)
+                p == Page.MY_BOOKINGS -> MyBookingsPage(s)
+                p == Page.FARMER_ORDERS -> FarmerOrdersPage(s)
+                p == Page.FARMER_PRODUCTS -> FarmerProductsPage(s)
+                p == Page.HOME -> CatalogHome(s)
+                p == Page.SIGNUP -> SignupPage(s)
+                p == Page.LOGIN -> LoginPage(s)
+                p == Page.FARMER_PROFILE -> FarmerProfilePage(s)
+                p == Page.SQL_STUDIO -> SqlStudioPage(s)
             }
-            p == Page.FARM_DETAIL -> ExploreTours(s)
-            p == Page.FRUIT_PICKING -> FruitPickingPage(s)
-            p == Page.MARKET -> MarketPage(s)
-            p == Page.FARMERS_STORIES -> FarmersStoriesPage(s)
-            p == Page.CART_CHECKOUT -> CheckoutPage(s)
-            p == Page.ORDER_TRACKING -> OrderTrackingPage(s)
-            p == Page.MY_BOOKINGS -> MyBookingsPage(s)
-            p == Page.FARMER_ORDERS -> FarmerOrdersPage(s)
-            p == Page.FARMER_PRODUCTS -> FarmerProductsPage(s)
-            p == Page.HOME -> CatalogHome(s)
-            p == Page.SIGNUP -> SignupPage(s)
-            p == Page.LOGIN -> LoginPage(s)
-            p == Page.FARMER_PROFILE -> FarmerProfilePage(s)
-            p == Page.SQL_STUDIO -> SqlStudioPage(s)
         }
     }
 }

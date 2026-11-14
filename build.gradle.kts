@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "ph.agritourism"
-version = "1.0.0"
+version = "1.1.0"
 
 kotlin { jvmToolchain(17) }
 
@@ -38,7 +38,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "AgriTourism Philippines"
-            packageVersion = "1.0.0"
+            packageVersion = "1.1.0"
             description = "AgriTourism Philippines desktop app (Kotlin Compose + SQLite)"
             vendor = "AgriTourism Philippines"
             modules("java.sql")
