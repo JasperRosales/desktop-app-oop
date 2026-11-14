@@ -1,20 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# AgriTourism Philippines — Desktop App
 
-# Run and deploy your AI Studio app
+Kotlin **Compose for Desktop** + **SQLite3** port of the original React/Electron app.
+Same screens and flows: opening catalog, login/sign-up (Tourist / Farmer / Admin), dashboards,
+farm tours & fruit-picking reservations, marketplace with stock limits, 4-step checkout,
+delivery tracking, bookings (tickets, receipts, reschedule, cancel, delete, gate check-in,
+guide assignment), farmer orders & produce catalog, farmer stories, notifications with
+1-day attendance confirmation, and an admin SQL studio.
 
-This contains everything you need to run your app locally.
+## Run
 
-View your app in AI Studio: https://ai.studio/apps/2e107eed-80fd-464c-aad7-e56100b4caf8
+Requires JDK 17+.
 
-## Run Locally
+```bash
+./gradlew run                 # launch the app
+./gradlew packageDistributionForCurrentOS   # build an installer (msi/exe/dmg/deb)
+```
 
-**Prerequisites:**  Node.js
+## Data
 
+- SQLite file: `~/.agritourism/agritourism.db` (override with `AGRITOURISM_DB=/path/file.db`).
+- First launch seeds it from `src/main/resources/seed.json` (farmers, tours, orchards,
+  products, bookings, orders, reviews, notifications, cart, favorites, users).
+- Delete the `.db` file to reset to the original sample data.
+- Admins can inspect/query tables in **View → SQL Database Studio**.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Images
+
+All bundled images live in `src/main/resources`:
+`farmers/*.png` (farmer & user avatars), `fruit_picking/*.jpg` (orchard photos),
+`icons/*.png` (window/app icons), `mockups/*` (design references — **View → Design Mockups Gallery**).
+Remote Unsplash photos are cached in `~/.agritourism/image-cache`.
+
+## Layout
+
+```
+src/main/kotlin/ph/agritourism/
+  Main.kt               window + native menu bar (File/Catalog/View/Account)
+  data/Database.kt      SQLite schema, seeding, DAO queries
+  model/Models.kt       data classes
+  ui/AppState.kt        app state + all actions (ported from App.tsx)
+  ui/Shell.kt           header, sidebar dock, page router, notifications drawer, toast
+  ui/screens/*          pages
+  ui/dialogs/Overlays.kt modals (tour/fruit booking, tickets, receipts, dossiers…)
+  util/Printing.kt      print / save-as / printable tickets & receipts
+```
