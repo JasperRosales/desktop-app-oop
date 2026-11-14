@@ -45,6 +45,7 @@ compose.desktop {
             packageVersion = appVersion
             description = "AgriTourism Philippines desktop app (Kotlin Compose + SQLite)"
             vendor = "AgriTourism Philippines"
+            licenseFile.set(project.file("LICENSE"))
             modules("java.sql")
             windows {
                 menuGroup = "AgriTourism"

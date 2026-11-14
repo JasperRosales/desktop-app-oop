@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: windows-release
@@ -16,7 +17,7 @@ jobs:
   build-and-release:
     name: Build and publish Windows release
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -63,6 +64,76 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat releaseArtifacts "-PappVersion=${{ steps.version.outputs.version }}" --console=plain
 
+      - name: Check SignPath configuration
+        id: signpath
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          if ($env:SIGNPATH_API_TOKEN) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath signing is enabled."
+          } else {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::notice::SIGNPATH_API_TOKEN is not set; publishing an unsigned build."
+          }
+
+      - name: Upload unsigned installer
+        id: upload-unsigned
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: build/release/*.exe
+          archive: false
+          if-no-files-found: error
+
+      - name: Sign installer with SignPath
+        id: sign
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          download-signed-artifact-timeout-in-seconds: 900
+          output-artifact-directory: signed
+          skip-decompress: true
+
+      - name: Verify signed installer
+        if: steps.signpath.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -Path signed -Filter *.exe | Select-Object -First 1
+          if (-not $signed) { throw "SignPath did not return a signed installer." }
+
+          $target = Get-ChildItem -Path build/release -Filter *.exe | Select-Object -First 1
+          Copy-Item $signed.FullName $target.FullName -Force
+
+          $signature = Get-AuthenticodeSignature $target.FullName
+          if ($signature.Status -ne 'Valid') { throw "Signature verification failed: $($signature.Status)" }
+          Write-Host "Signed installer verified: $($signature.SignerCertificate.Subject)"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path build/release -File |
+            Where-Object { $_.Extension -in '.exe', '.db' } |
+            Sort-Object Name
+
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $file.FullName).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+
+          $lines | Set-Content -Path build/release/SHA256SUMS.txt -Encoding ascii
+          Get-Content build/release/SHA256SUMS.txt
+
       - name: Publish GitHub release
         shell: pwsh
         env:
@@ -70,10 +141,16 @@ jobs:
         run: |
           $tag = "${{ steps.version.outputs.tag }}"
           $version = "${{ steps.version.outputs.version }}"
+          $isSigned = "${{ steps.signpath.outputs.enabled }}" -eq "true"
           $exe = Get-ChildItem -Path build/release -Filter *.exe | Select-Object -First 1
           $db = Get-Item build/release/agritourism.db
           # GitHub replaces spaces with dots in uploaded asset names.
           $exeAssetName = $exe.Name -replace ' ', '.'
+          $signingNote = if ($isSigned) {
+            "This installer is code-signed via SignPath Foundation."
+          } else {
+            "This build is unsigned, so Windows SmartScreen may warn about it until SignPath signing is enabled."
+          }
 
           $notes = gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" `
             -f tag_name=$tag `
@@ -86,9 +163,16 @@ jobs:
           ### Release assets
           - **$exeAssetName** — self-contained Windows installer; no JDK required.
           - **$($db.Name)** — pre-seeded SQLite database. Set ``AGRITOURISM_DB`` to its path to run against it.
+          - **SHA256SUMS.txt** — SHA-256 checksums for the files above.
+
+          $signingNote
+
+          ### Verify your download
+          Compare the file's SHA-256 hash with `SHA256SUMS.txt` before running it. If Windows
+          shows a SmartScreen warning, verify the checksum first, then choose **More info → Run anyway**.
           "@ | Set-Content -Path release-notes.md -Encoding utf8
 
-          gh release create $tag $exe.FullName $db.FullName `
+          gh release create $tag $exe.FullName $db.FullName build/release/SHA256SUMS.txt `
             --title "AgriTourism Philippines v$version" `
             --notes-file release-notes.md `
             --target $env:GITHUB_SHA

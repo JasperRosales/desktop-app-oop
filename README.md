@@ -26,6 +26,27 @@ with an automatically incremented `vX.Y.Z` tag. Bump the base `version` in
 otherwise the patch number is bumped automatically. Releases can also be triggered
 manually from the **Actions** tab.
 
+### Code signing
+
+Windows SmartScreen warns about new unsigned executables ("isn't commonly downloaded").
+Releases are set up to be signed for free through [SignPath Foundation](https://signpath.org/)
+once the project is approved. Until `SIGNPATH_API_TOKEN` is configured, the workflow still
+publishes unsigned builds together with SHA-256 checksums.
+
+To enable signing:
+
+1. Apply at <https://signpath.org/apply> and link this repository.
+2. Install the [SignPath GitHub App](https://github.com/apps/signpath) for the repository.
+3. In SignPath, create an **Open Source Code Signing** project with an artifact configuration
+   named `installer` using [`.signpath/artifact-configuration.xml`](.signpath/artifact-configuration.xml).
+4. Add the repository secret `SIGNPATH_API_TOKEN`.
+5. Add repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, and
+   `SIGNPATH_SIGNING_POLICY_SLUG`.
+
+The workflow signs the installer, verifies the Authenticode signature, and only then publishes
+the release. If Windows still shows a SmartScreen warning, check the SHA-256 hash against
+`SHA256SUMS.txt` before choosing **More info → Run anyway**.
+
 ## Data
 
 - SQLite file: `~/.agritourism/agritourism.db` (override with `AGRITOURISM_DB=/path/file.db`).
@@ -56,3 +77,7 @@ src/main/kotlin/ph/agritourism/
   ui/dialogs/Overlays.kt modals (tour/fruit booking, tickets, receipts, dossiers…)
   util/Printing.kt      print / save-as / printable tickets & receipts
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
