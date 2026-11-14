@@ -131,8 +131,8 @@ fun FarmersStoriesPage(s: AppState) {
         val provinces = listOf("All", "Batangas", "Benguet", "Bukidnon", "Davao")
         FilterChipRow(provinces, s.farmerStoriesFilter, { p -> "$p (${if (p == "All") s.farmers.size else s.farmers.count { it.province == p }})" }) { s.farmerStoriesFilter = it }
         Spacer(Modifier.weight(1f))
-        OutlinedTextField(s.farmerSearchQuery, { s.farmerSearchQuery = it }, Modifier.width(260.dp), singleLine = true,
-            leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Search farmer or crop...", fontSize = 12.sp) }, shape = RoundedCornerShape(24.dp))
+        OutlinedTextField(s.farmerSearchQuery, { s.farmerSearchQuery = it }, Modifier.width(260.dp).heightIn(min = 48.dp), singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Search farmer or crop...", fontSize = 13.sp) }, shape = RoundedCornerShape(24.dp))
     }
     val q = s.farmerSearchQuery
     val list = s.farmers.filter { s.farmerStoriesFilter == "All" || it.province == s.farmerStoriesFilter }
@@ -190,8 +190,8 @@ fun CatalogHome(s: AppState) {
             FilterChipRow(listOf("ALL", "PLACES", "PRODUCTS", "ORCHARDS"), s.showcaseCategory.name,
                 { mapOf("ALL" to "All", "PLACES" to "Destinations", "PRODUCTS" to "Products", "ORCHARDS" to "Orchards")[it]!! }) { s.showcaseCategory = ShowcaseCategory.valueOf(it) }
             Spacer(Modifier.width(12.dp))
-            OutlinedTextField(s.searchQuery, { s.searchQuery = it }, Modifier.width(240.dp), singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Filter farms or products...", fontSize = 12.sp) },
+            OutlinedTextField(s.searchQuery, { s.searchQuery = it }, Modifier.width(240.dp).heightIn(min = 48.dp), singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Filter farms or products...", fontSize = 13.sp) },
                 trailingIcon = { if (s.searchQuery.isNotEmpty()) TextButton({ s.searchQuery = "" }) { Text("Clear") } }, shape = RoundedCornerShape(24.dp))
         }
     }

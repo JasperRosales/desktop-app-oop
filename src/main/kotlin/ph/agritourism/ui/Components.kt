@@ -1,5 +1,11 @@
 package ph.agritourism.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -53,8 +59,9 @@ val AppColors = lightColorScheme(
 fun GlassCard(modifier: Modifier = Modifier, padding: Dp = 20.dp, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     var hovered by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(20.dp)
-    val elevation by androidx.compose.animation.core.animateDpAsState(if (hovered && onClick != null) 14.dp else 6.dp, label = "card-elev")
-    val scale by androidx.compose.animation.core.animateFloatAsState(if (hovered && onClick != null) 1.015f else 1f, label = "card-scale")
+    val elevation by animateDpAsState(if (hovered && onClick != null) 14.dp else 6.dp, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "card-elev")
+    val scale by animateFloatAsState(if (hovered && onClick != null) 1.015f else 1f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "card-scale")
+    val border by animateColorAsState(if (hovered && onClick != null) Palette.Forest.copy(alpha = 0.25f) else Color(0xFFE5ECE6), label = "card-border")
     Column(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
@@ -63,8 +70,9 @@ fun GlassCard(modifier: Modifier = Modifier, padding: Dp = 20.dp, onClick: (() -
             .shadow(elevation, shape, ambientColor = Color(0x22000000), spotColor = Color(0x22000000))
             .clip(shape)
             .background(Palette.Glass)
-            .border(1.dp, if (hovered && onClick != null) Palette.Forest.copy(alpha = 0.25f) else Color(0xFFE5ECE6), shape)
+            .border(1.dp, border, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .animateContentSize()
             .padding(padding),
         content = content,
     )
@@ -110,11 +118,14 @@ fun FilterChipRow(options: List<String>, selected: String, label: (String) -> St
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { o ->
             val sel = o == selected
+            val bg by animateColorAsState(if (sel) Palette.Forest else Color.White, label = "chip-bg")
+            val fg by animateColorAsState(if (sel) Color.White else Palette.Ink, label = "chip-fg")
+            val border by animateColorAsState(if (sel) Palette.Forest else Palette.Border, label = "chip-border")
             Text(label(o), Modifier.clip(RoundedCornerShape(50))
-                .background(if (sel) Palette.Forest else Color.White)
-                .border(1.dp, if (sel) Palette.Forest else Palette.Border, RoundedCornerShape(50))
+                .background(bg)
+                .border(1.dp, border, RoundedCornerShape(50))
                 .clickable { onSelect(o) }.padding(horizontal = 14.dp, vertical = 7.dp),
-                color = if (sel) Color.White else Palette.Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

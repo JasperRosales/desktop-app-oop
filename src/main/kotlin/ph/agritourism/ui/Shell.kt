@@ -67,13 +67,24 @@ private fun TopBar(s: AppState) {
             Text("  Philippines", fontSize = 12.sp, color = Palette.Forest)
         }
         Spacer(Modifier.weight(1f))
-        if (s.isLoggedIn && s.activePage != Page.HOME) {
-            OutlinedTextField(s.searchQuery, { s.searchQuery = it }, Modifier.width(380.dp).height(48.dp), singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, null) }, shape = RoundedCornerShape(24.dp),
-                placeholder = { Text("Search farm tours, fruit picking, fresh vegetables...", fontSize = 12.sp) },
-                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Palette.Border, focusedBorderColor = Palette.Forest))
-            Spacer(Modifier.width(12.dp))
+        androidx.compose.animation.AnimatedVisibility(
+            visible = s.isLoggedIn && s.activePage != Page.HOME,
+            enter = fadeIn(androidx.compose.animation.core.tween(180)) + expandHorizontally(expandFrom = Alignment.Start),
+            exit = fadeOut(androidx.compose.animation.core.tween(120)) + shrinkHorizontally(shrinkTowards = Alignment.Start),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    s.searchQuery, { s.searchQuery = it },
+                    Modifier.widthIn(max = 280.dp).height(46.dp),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, null, Modifier.size(18.dp)) },
+                    shape = RoundedCornerShape(24.dp),
+                    placeholder = { Text("Search tours, produce...", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                    colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Palette.Border, focusedBorderColor = Palette.Forest),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
         }
         if (s.isLoggedIn) {
             BadgedIcon(Icons.Outlined.Notifications, s.unreadCount, "Notifications") { s.isNotificationsOpen = !s.isNotificationsOpen }
@@ -229,9 +240,11 @@ private fun PageContent(s: AppState) {
     AnimatedContent(
         targetState = s.activePage,
         transitionSpec = {
-            (fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) +
-                slideInVertically(animationSpec = androidx.compose.animation.core.tween(220)) { it / 24 }) togetherWith
-                fadeOut(animationSpec = androidx.compose.animation.core.tween(140))
+            (fadeIn(animationSpec = androidx.compose.animation.core.tween(260)) +
+                slideInVertically(animationSpec = androidx.compose.animation.core.tween(260)) { it / 18 } +
+                scaleIn(initialScale = 0.985f, animationSpec = androidx.compose.animation.core.tween(260))) togetherWith
+                (fadeOut(animationSpec = androidx.compose.animation.core.tween(160)) +
+                    scaleOut(targetScale = 0.985f, animationSpec = androidx.compose.animation.core.tween(160)))
         },
         label = "page",
     ) { p ->
