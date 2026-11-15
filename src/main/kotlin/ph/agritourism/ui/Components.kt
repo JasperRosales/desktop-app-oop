@@ -10,7 +10,21 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -54,27 +68,96 @@ val AppColors = lightColorScheme(
     primaryContainer = Palette.Mint, onPrimaryContainer = Palette.Deep, error = Palette.Red,
 )
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, padding: Dp = 20.dp, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    var hovered by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(20.dp)
-    val elevation by animateDpAsState(if (hovered && onClick != null) 14.dp else 6.dp, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "card-elev")
-    val scale by animateFloatAsState(if (hovered && onClick != null) 1.015f else 1f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "card-scale")
-    val border by animateColorAsState(if (hovered && onClick != null) Palette.Forest.copy(alpha = 0.25f) else Color(0xFFE5ECE6), label = "card-border")
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val active = onClick != null && hovered
+    val shape = RoundedCornerShape(18.dp)
+    val springSpec = spring<Float>(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)
+    val elevation by animateDpAsState(if (active) 18.dp else 4.dp, spring(stiffness = Spring.StiffnessMediumLow), label = "card-elev")
+    val lift by animateFloatAsState(if (active && !pressed) -4f else 0f, springSpec, label = "card-lift")
+    val scale by animateFloatAsState(when { pressed && onClick != null -> 0.985f; active -> 1.01f; else -> 1f }, springSpec, label = "card-scale")
+    val border by animateColorAsState(if (active) Palette.Forest.copy(alpha = 0.30f) else Color(0xFFE6ECE7), tween(220), label = "card-border")
     Column(
         modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter) { hovered = true }
-            .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Exit) { hovered = false }
-            .shadow(elevation, shape, ambientColor = Color(0x22000000), spotColor = Color(0x22000000))
+            .graphicsLayer { scaleX = scale; scaleY = scale; translationY = lift * density }
+            .hoverable(interaction)
+            .shadow(elevation, shape, ambientColor = Color(0x1A0F2A17), spotColor = Color(0x330F2A17))
             .clip(shape)
             .background(Palette.Glass)
             .border(1.dp, border, shape)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .animateContentSize()
+            .then(if (onClick != null) Modifier.clickable(interaction, LocalIndication.current, onClick = onClick) else Modifier)
+            .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
             .padding(padding),
         content = content,
+    )
+}
+
+/** Fades and slides content in once when it first enters composition; [index] staggers siblings. */
+@Composable
+fun Modifier.entrance(index: Int = 0, offset: Dp = 18.dp): Modifier {
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
+    val delay = (index.coerceAtMost(10)) * 45
+    val alpha by animateFloatAsState(if (started) 1f else 0f, tween(380, delay, FastOutSlowInEasing), label = "enter-a")
+    val dy by animateFloatAsState(if (started) 0f else 1f, tween(460, delay, FastOutSlowInEasing), label = "enter-y")
+    return graphicsLayer { this.alpha = alpha; translationY = dy * offset.toPx() }
+}
+
+/** Subtle hover/press scale feedback for buttons and chips. */
+@Composable
+private fun pressScale(interaction: MutableInteractionSource): Float {
+    val hovered by interaction.collectIsHoveredAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val v by animateFloatAsState(when { pressed -> 0.96f; hovered -> 1.03f; else -> 1f },
+        spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium), label = "press")
+    return v
+}
+
+/**
+ * Compact single-line search box. Built on BasicTextField so the placeholder is vertically
+ * centred at any height (Material's OutlinedTextField reserves 56dp and pushes text down).
+ */
+@Composable
+fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, height: Dp = 40.dp) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
+    val border by animateColorAsState(when { focused -> Palette.Forest; hovered -> Palette.Forest.copy(alpha = 0.45f); else -> Palette.Border }, tween(180), label = "search-border")
+    val ring by animateDpAsState(if (focused) 4.dp else 0.dp, spring(stiffness = Spring.StiffnessMedium), label = "search-ring")
+    val iconTint by animateColorAsState(if (focused) Palette.Forest else Palette.Muted, tween(180), label = "search-icon")
+    val shape = RoundedCornerShape(50)
+    BasicTextField(
+        value, onChange,
+        modifier
+            .height(height)
+            .hoverable(interaction)
+            .border(ring, Palette.Forest.copy(alpha = 0.12f), shape)
+            .padding(ring)
+            .clip(shape)
+            .background(Color.White)
+            .border(1.dp, border, shape),
+        singleLine = true,
+        interactionSource = interaction,
+        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = Color(0xFF1E1E1E)),
+        cursorBrush = SolidColor(Palette.Forest),
+        decorationBox = { inner ->
+            Row(Modifier.fillMaxSize().padding(start = 12.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Search, null, Modifier.size(17.dp), tint = iconTint)
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(placeholder, fontSize = 13.sp, color = Palette.Muted.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+                AnimatedVisibility(value.isNotEmpty(), enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.6f), exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f)) {
+                    Box(Modifier.size(24.dp).clip(CircleShape).clickable { onChange("") }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Close, "Clear search", Modifier.size(14.dp), tint = Palette.Muted)
+                    }
+                }
+            }
+        },
     )
 }
 
@@ -90,7 +173,11 @@ fun Label(text: String) = Text(text.uppercase(), fontSize = 10.sp, fontWeight = 
 
 @Composable
 fun PrimaryButton(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true, color: Color = Palette.Forest, onClick: () -> Unit) {
-    Button(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(12.dp),
+    val interaction = remember { MutableInteractionSource() }
+    val scale = pressScale(interaction)
+    Button(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+        interactionSource = interaction,
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, hoveredElevation = 6.dp, pressedElevation = 0.dp),
         colors = ButtonDefaults.buttonColors(containerColor = color), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
         if (icon != null) { Icon(icon, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)) }
         Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -99,8 +186,13 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, icon: ImageVector
 
 @Composable
 fun SecondaryButton(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, color: Color = Palette.Forest, enabled: Boolean = true, onClick: () -> Unit) {
-    OutlinedButton(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)), colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+    val interaction = remember { MutableInteractionSource() }
+    val scale = pressScale(interaction)
+    val hovered by interaction.collectIsHoveredAsState()
+    val bg by animateColorAsState(if (hovered) color.copy(alpha = 0.07f) else Color.Transparent, tween(160), label = "sec-bg")
+    OutlinedButton(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+        interactionSource = interaction,
+        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)), colors = ButtonDefaults.outlinedButtonColors(contentColor = color, containerColor = bg),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
         if (icon != null) { Icon(icon, null, Modifier.size(15.dp)); Spacer(Modifier.width(6.dp)) }
         Text(text, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -120,11 +212,14 @@ fun FilterChipRow(options: List<String>, selected: String, label: (String) -> St
             val sel = o == selected
             val bg by animateColorAsState(if (sel) Palette.Forest else Color.White, label = "chip-bg")
             val fg by animateColorAsState(if (sel) Color.White else Palette.Ink, label = "chip-fg")
-            val border by animateColorAsState(if (sel) Palette.Forest else Palette.Border, label = "chip-border")
-            Text(label(o), Modifier.clip(RoundedCornerShape(50))
+            val interaction = remember { MutableInteractionSource() }
+            val hovered by interaction.collectIsHoveredAsState()
+            val border by animateColorAsState(if (sel || hovered) Palette.Forest else Palette.Border, label = "chip-border")
+            val scale = pressScale(interaction)
+            Text(label(o), Modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(50))
                 .background(bg)
                 .border(1.dp, border, RoundedCornerShape(50))
-                .clickable { onSelect(o) }.padding(horizontal = 14.dp, vertical = 7.dp),
+                .hoverable(interaction).clickable(interaction, LocalIndication.current) { onSelect(o) }.padding(horizontal = 14.dp, vertical = 7.dp),
                 color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -190,14 +285,19 @@ fun ChoiceRow(options: List<String>, selected: String, onSelect: (String) -> Uni
 @Composable
 fun Modal(onDismiss: () -> Unit, width: Dp = 640.dp, content: @Composable ColumnScope.() -> Unit) {
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.widthIn(max = width).fillMaxWidth(0.92f).heightIn(max = 760.dp).clip(RoundedCornerShape(24.dp))
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        val a by animateFloatAsState(if (shown) 1f else 0f, tween(220, easing = FastOutSlowInEasing), label = "modal-a")
+        val sc by animateFloatAsState(if (shown) 1f else 0.94f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), label = "modal-s")
+        Column(Modifier.graphicsLayer { alpha = a; scaleX = sc; scaleY = sc; translationY = (1f - a) * 24f * density }
+            .shadow(32.dp, RoundedCornerShape(24.dp)).widthIn(max = width).fillMaxWidth(0.92f).heightIn(max = 760.dp).clip(RoundedCornerShape(24.dp))
             .background(Color.White).verticalScroll(rememberScrollState()), content = content)
     }
 }
 
 @Composable
 fun ModalHeader(title: String, subtitle: String? = null, icon: ImageVector? = null, onClose: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Palette.Deep).padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Palette.Deep, Palette.Forest))).padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) { Icon(icon, null, tint = Color(0xFF86EFAC)); Spacer(Modifier.width(10.dp)) }
         Column(Modifier.weight(1f)) {
             if (subtitle != null) Text(subtitle.uppercase(), color = Color(0xFF86EFAC), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
@@ -234,9 +334,9 @@ fun SectionHeader(title: String, subtitle: String? = null, action: (@Composable 
 @Composable
 fun <T> Grid(items: List<T>, columns: Int, spacing: Dp = 16.dp, cell: @Composable (T) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-        items.chunked(columns).forEach { row ->
+        items.chunked(columns).forEachIndexed { r, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
-                row.forEach { Box(Modifier.weight(1f)) { cell(it) } }
+                row.forEachIndexed { c, item -> Box(Modifier.weight(1f).entrance(r * columns + c)) { cell(item) } }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
@@ -256,8 +356,10 @@ fun PhotoCard(image: String, title: String, locationTag: String, rating: Double,
     GlassCard(padding = 0.dp, onClick = onClick) {
         Box(Modifier.fillMaxWidth().height(200.dp)) {
             AsyncImage(image, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0x55000000))))
             Pill(locationTag, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopStart).padding(12.dp))
-            IconButton(onFavorite, Modifier.align(Alignment.TopEnd).padding(8.dp).size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.9f))) {
+            val heart by animateFloatAsState(if (favorited) 1f else 0.85f, spring(dampingRatio = 0.35f, stiffness = Spring.StiffnessMedium), label = "heart")
+            IconButton(onFavorite, Modifier.align(Alignment.TopEnd).padding(8.dp).size(36.dp).graphicsLayer { scaleX = heart + 0.15f; scaleY = heart + 0.15f }.clip(CircleShape).background(Color.White.copy(alpha = 0.9f))) {
                 Icon(if (favorited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Save to favorites", tint = Color(0xFFEF4444))
             }
         }

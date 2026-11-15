@@ -9,6 +9,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -81,11 +84,24 @@ fun AsyncImage(src: String, modifier: Modifier = Modifier, contentScale: Content
         if (bmp == null) { bmp = ImageLoader.load(src); if (bmp == null) failed = true }
     }
     val b = bmp
+    val wasCached = remember(src) { bmp != null }
+    val fade by androidx.compose.animation.core.animateFloatAsState(
+        if (b != null) 1f else 0f, androidx.compose.animation.core.tween(if (wasCached) 0 else 420), label = "img-fade")
     if (b != null) {
-        Image(b, contentDescription, modifier, contentScale = contentScale)
-    } else {
+        Image(b, contentDescription, modifier.graphicsLayer { alpha = fade }, contentScale = contentScale)
+    } else if (failed) {
         Box(modifier.background(Brush.linearGradient(listOf(Color(0xFFDCEBDF), Color(0xFFF1F5EE)))), contentAlignment = Alignment.Center) {
-            if (failed) Icon(Icons.Outlined.Image, null, tint = Color(0xFF8FB39A))
+            Icon(Icons.Outlined.Image, null, tint = Color(0xFF8FB39A))
         }
+    } else {
+        // Loading shimmer
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmer")
+        val x by t.animateFloat(-1f, 2f, androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1300, easing = androidx.compose.animation.core.LinearEasing)), label = "shimmer-x")
+        Box(modifier.drawBehind {
+            val w = size.width
+            drawRect(Brush.linearGradient(listOf(Color(0xFFE3EEE5), Color(0xFFF6FAF6), Color(0xFFE3EEE5)),
+                start = androidx.compose.ui.geometry.Offset(w * x - w * 0.5f, 0f), end = androidx.compose.ui.geometry.Offset(w * x + w * 0.5f, size.height)))
+        })
     }
 }

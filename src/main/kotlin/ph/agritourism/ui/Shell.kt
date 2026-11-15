@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -53,7 +55,7 @@ fun AppShell(s: AppState) {
 
 @Composable
 private fun TopBar(s: AppState) {
-    Row(Modifier.fillMaxWidth().height(60.dp).background(Color.White.copy(alpha = 0.96f)).padding(horizontal = 16.dp),
+    Row(Modifier.fillMaxWidth().height(60.dp).shadow(3.dp, ambientColor = Color(0x14000000), spotColor = Color(0x14000000)).background(Color.White.copy(alpha = 0.97f)).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton({ s.isSidebarCollapsed = !s.isSidebarCollapsed }, Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, Palette.Border, RoundedCornerShape(10.dp))) {
             Icon(if (s.isSidebarCollapsed) Icons.AutoMirrored.Outlined.ViewSidebar else Icons.AutoMirrored.Outlined.MenuOpen, "Toggle sidebar", tint = Palette.Ink)
@@ -73,16 +75,7 @@ private fun TopBar(s: AppState) {
             exit = fadeOut(androidx.compose.animation.core.tween(120)) + shrinkHorizontally(shrinkTowards = Alignment.Start),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    s.searchQuery, { s.searchQuery = it },
-                    Modifier.widthIn(max = 280.dp).height(46.dp),
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Outlined.Search, null, Modifier.size(18.dp)) },
-                    shape = RoundedCornerShape(24.dp),
-                    placeholder = { Text("Search tours, produce...", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
-                    colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Palette.Border, focusedBorderColor = Palette.Forest),
-                )
+                SearchField(s.searchQuery, { s.searchQuery = it }, "Search tours, produce…", Modifier.width(280.dp))
                 Spacer(Modifier.width(12.dp))
             }
         }
@@ -120,7 +113,6 @@ private fun TopBar(s: AppState) {
             PrimaryButton("Sign Up") { s.navigate(Page.SIGNUP) }
         }
     }
-    HorizontalDivider(color = Palette.Border)
 }
 
 @Composable
@@ -135,8 +127,9 @@ private fun BadgedIcon(icon: ImageVector, count: Int, desc: String, onClick: () 
 private fun Sidebar(s: AppState) {
     var hovered by remember { mutableStateOf(false) }
     val expanded = !s.isSidebarCollapsed || hovered
-    val width by androidx.compose.animation.core.animateDpAsState(if (expanded) 264.dp else 76.dp)
-    Column(Modifier.width(width).fillMaxHeight().background(Color.White.copy(alpha = 0.94f))
+    val width by androidx.compose.animation.core.animateDpAsState(if (expanded) 264.dp else 76.dp,
+        androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow), label = "sidebar-w")
+    Column(Modifier.width(width).fillMaxHeight().background(Color.White.copy(alpha = 0.94f)).clipToBounds()
         .onPointerEvent(PointerEventType.Enter) { if (s.isSidebarCollapsed) hovered = true }
         .onPointerEvent(PointerEventType.Exit) { hovered = false }) {
         Row(Modifier.fillMaxWidth().clickable { if (s.isSidebarCollapsed) s.isSidebarCollapsed = false else s.navigate(Page.DASHBOARD) }.padding(16.dp),
@@ -217,18 +210,29 @@ private fun Sidebar(s: AppState) {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun NavItem(icon: ImageVector, label: String, active: Boolean, expanded: Boolean, badge: String?, onClick: () -> Unit) {
-    val bg by androidx.compose.animation.animateColorAsState(if (active) Palette.Forest else Color.Transparent, label = "nav-bg")
-    val fg by androidx.compose.animation.animateColorAsState(if (active) Color.White else Palette.Ink, label = "nav-fg")
-    TooltipArea(tooltip = { if (!expanded) Surface(shape = RoundedCornerShape(8.dp), color = Palette.Deep) { Text(label, Modifier.padding(8.dp), color = Color.White, fontSize = 12.sp) } }) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg)
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, label, Modifier.size(20.dp), tint = fg)
-            if (expanded) {
-                Spacer(Modifier.width(14.dp))
-                Text(label, Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = fg,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (badge != null) Pill(badge, if (active) Color.White.copy(alpha = 0.2f) else Palette.Mint, if (active) Color.White else Palette.Forest)
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val bg by animateColorAsState(when { active -> Palette.Forest; hovered -> Palette.Mint; else -> Color.Transparent },
+        androidx.compose.animation.core.tween(200), label = "nav-bg")
+    val fg by animateColorAsState(if (active) Color.White else Palette.Ink, androidx.compose.animation.core.tween(200), label = "nav-fg")
+    val nudge by androidx.compose.animation.core.animateDpAsState(if (hovered && !active && expanded) 4.dp else 0.dp,
+        androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMedium), label = "nav-nudge")
+    val bar by androidx.compose.animation.core.animateDpAsState(if (active) 18.dp else 0.dp,
+        androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow), label = "nav-bar")
+    TooltipArea(tooltip = { if (!expanded) Surface(shape = RoundedCornerShape(8.dp), color = Palette.Deep, shadowElevation = 6.dp) { Text(label, Modifier.padding(8.dp), color = Color.White, fontSize = 12.sp) } }) {
+        Box(contentAlignment = Alignment.CenterStart) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(bg)
+                .hoverable(interaction).clickable(interaction, LocalIndication.current, onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 11.dp).offset(x = nudge), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, label, Modifier.size(20.dp), tint = fg)
+                if (expanded) {
+                    Spacer(Modifier.width(14.dp))
+                    Text(label, Modifier.weight(1f), fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold, fontSize = 13.sp, color = fg,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (badge != null) Pill(badge, if (active) Color.White.copy(alpha = 0.2f) else Palette.Mint, if (active) Color.White else Palette.Forest)
+                }
             }
+            Box(Modifier.offset(x = (-12).dp).width(4.dp).height(bar).clip(RoundedCornerShape(2.dp)).background(Palette.Forest))
         }
     }
 }
@@ -240,11 +244,10 @@ private fun PageContent(s: AppState) {
     AnimatedContent(
         targetState = s.activePage,
         transitionSpec = {
-            (fadeIn(animationSpec = androidx.compose.animation.core.tween(260)) +
-                slideInVertically(animationSpec = androidx.compose.animation.core.tween(260)) { it / 18 } +
-                scaleIn(initialScale = 0.985f, animationSpec = androidx.compose.animation.core.tween(260))) togetherWith
-                (fadeOut(animationSpec = androidx.compose.animation.core.tween(160)) +
-                    scaleOut(targetScale = 0.985f, animationSpec = androidx.compose.animation.core.tween(160)))
+            val ease = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
+            (fadeIn(androidx.compose.animation.core.tween(320, delayMillis = 60, easing = ease)) +
+                slideInVertically(androidx.compose.animation.core.tween(380, delayMillis = 60, easing = ease)) { 36 }) togetherWith
+                fadeOut(androidx.compose.animation.core.tween(120))
         },
         label = "page",
     ) { p ->
@@ -278,7 +281,9 @@ private fun PageContent(s: AppState) {
 
 @Composable
 private fun Toast(s: AppState, modifier: Modifier) {
-    AnimatedVisibility(s.toastMessage != null, modifier.padding(bottom = 28.dp), enter = fadeIn() + slideInVertically { it }, exit = fadeOut()) {
+    AnimatedVisibility(s.toastMessage != null, modifier.padding(bottom = 28.dp),
+        enter = fadeIn(androidx.compose.animation.core.tween(200)) + slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) { it } + scaleIn(initialScale = 0.9f),
+        exit = fadeOut(androidx.compose.animation.core.tween(160)) + slideOutVertically { it / 2 }) {
         Row(Modifier.shadow(12.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Palette.Deep)
             .padding(horizontal = 20.dp, vertical = 14.dp).widthIn(max = 640.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.AutoAwesome, null, tint = Color(0xFF86EFAC))
