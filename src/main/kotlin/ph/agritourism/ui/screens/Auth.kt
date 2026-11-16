@@ -27,7 +27,7 @@ private fun AuthLayout(s: AppState, form: @Composable ColumnScope.() -> Unit) {
     Row(Modifier.fillMaxWidth().height(720.dp).clip(RoundedCornerShape(28.dp)).background(Color.White)) {
         Box(Modifier.weight(1.1f).fillMaxHeight()) {
             Crossfade(s.currentSlide, animationSpec = tween(900)) { i ->
-                AsyncImage(s.farmers[i].farmBannerUrl, Modifier.fillMaxSize(), contentDescription = s.farmers[i].farmName)
+                AsyncImage(s.farmers[i].farmBannerUrl, Modifier.fillMaxSize(), contentDescription = s.farmers[i].farmName, fallback = s.images.farmerProfileBanner)
             }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color.Transparent, Color(0x66000000)))))
             Row(Modifier.align(Alignment.TopStart).padding(20.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.9f)).padding(horizontal = 12.dp, vertical = 6.dp),

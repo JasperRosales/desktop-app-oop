@@ -140,7 +140,7 @@ fun FarmersStoriesPage(s: AppState) {
         val harvests = s.products.filter { it.id in f.productIds }
         GlassCard(padding = 0.dp) {
             Box(Modifier.fillMaxWidth().height(170.dp)) {
-                AsyncImage(f.farmBannerUrl, Modifier.fillMaxSize())
+                AsyncImage(f.farmBannerUrl, Modifier.fillMaxSize(), fallback = s.images.farmerProfileBanner)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC0B2512)))))
                 Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Pill("📍 ${f.location}", Color.White.copy(alpha = 0.9f)); Pill(f.generation, Color(0xFFFEF3C7), Color(0xFF92400E))

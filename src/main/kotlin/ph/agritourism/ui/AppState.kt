@@ -179,7 +179,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var newProductUnit by mutableStateOf("kg")
     var newProductStock by mutableStateOf("25")
     var newProductDesc by mutableStateOf("")
-    var newProductImage by mutableStateOf(images.presetTomatoImage.ifBlank { "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=600&q=80" })
+    var newProductImage by mutableStateOf(images.presetTomatoImage.ifBlank { "res:images/photo-1598170845058-32b9d6a5da37-w600.jpg" })
 
     init {
         newProductImage = products.firstOrNull { it.id == 101L }?.imageUrl ?: newProductImage
@@ -456,7 +456,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         if (db.findUser(email) != null) return "An account with this email already exists."
         val u = db.tx {
             val created = db.createUser(fullName, email, phone, password, role.key)!!
-            if (role == Role.FARMER) db.createFarm(created.id, fullName, farmName, province, images.defaultProductFallbackImage)
+            if (role == Role.FARMER) db.createFarm(created.id, fullName, farmName, province, images.defaultProductFallbackImage, images.farmerProfileBanner)
             db.findUser(email)!!
         }
         farmers = db.farmers()

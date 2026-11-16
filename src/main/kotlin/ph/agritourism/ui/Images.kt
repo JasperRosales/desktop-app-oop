@@ -76,15 +76,23 @@ object ImageLoader {
     }
 }
 
+/** Bundled photo shown when an image is missing or can't be loaded, so nothing renders blank. */
+const val FALLBACK_IMAGE = "res:images/photo-1540420773420-3366772f4999-w600.jpg"
+
 @Composable
-fun AsyncImage(src: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, contentDescription: String? = null) {
-    var bmp by remember(src) { mutableStateOf(ImageLoader.cached(src)) }
-    var failed by remember(src) { mutableStateOf(false) }
-    LaunchedEffect(src) {
-        if (bmp == null) { bmp = ImageLoader.load(src); if (bmp == null) failed = true }
+fun AsyncImage(src: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, contentDescription: String? = null,
+               fallback: String = FALLBACK_IMAGE) {
+    val primary = src.ifBlank { fallback }
+    var bmp by remember(primary) { mutableStateOf(ImageLoader.cached(primary)) }
+    var failed by remember(primary) { mutableStateOf(false) }
+    LaunchedEffect(primary) {
+        if (bmp == null) {
+            bmp = ImageLoader.load(primary) ?: fallback.takeIf { it != primary }?.let { ImageLoader.load(it) }
+            if (bmp == null) failed = true
+        }
     }
     val b = bmp
-    val wasCached = remember(src) { bmp != null }
+    val wasCached = remember(primary) { bmp != null }
     val fade by androidx.compose.animation.core.animateFloatAsState(
         if (b != null) 1f else 0f, androidx.compose.animation.core.tween(if (wasCached) 0 else 420), label = "img-fade")
     if (b != null) {

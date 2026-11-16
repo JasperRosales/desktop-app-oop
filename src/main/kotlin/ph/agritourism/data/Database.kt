@@ -1,5 +1,6 @@
 package ph.agritourism.data
 
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -185,6 +186,7 @@ class Database(file: File = defaultFile()) {
         // One review per booking.
         exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_booking ON reviews(booking_id)")
         linkSeedReviews()
+        localizeImages()
         // Link existing orders to the account with the same name.
         exec("""UPDATE orders SET customer_email=(SELECT email FROM users WHERE lower(users.full_name)=lower(orders.customer_name) LIMIT 1)
                 WHERE customer_email IS NULL""")
@@ -200,6 +202,17 @@ class Database(file: File = defaultFile()) {
             exec("INSERT OR IGNORE INTO user_favorites (user_email, item_id) SELECT ?, item_id FROM favorites", owner)
             exec("DROP TABLE favorites")
         }
+    }
+
+    /** Older databases point at remote (some now dead) image URLs; swap them for the bundled copies. */
+    private fun localizeImages() {
+        val cols = listOf("farmers" to "photo_url", "farmers" to "farm_banner_url", "tours" to "image_url", "tours" to "thumbnails",
+            "fruit_picking" to "image_url", "fruit_picking" to "thumbnails", "products" to "image_url", "orders" to "uploaded_receipt_url")
+        val stale = cols.any { (t, c) -> query("SELECT 1 FROM $t WHERE $c LIKE '%images.unsplash.com%' OR $c LIKE '%api.qrserver.com%' LIMIT 1") { 1 }.isNotEmpty() }
+        if (!stale) return
+        val text = Database::class.java.getResource("/images/legacy-urls.json")?.readText() ?: return
+        val map = json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), text)
+        map.forEach { (old, new) -> cols.forEach { (t, c) -> exec("UPDATE $t SET $c=REPLACE($c, ?, ?) WHERE instr($c, ?) > 0", old, new, old) } }
     }
 
     private fun seed() {
@@ -289,10 +302,10 @@ class Database(file: File = defaultFile()) {
         query("SELECT * FROM users WHERE farmer_id=? AND role='farmer' LIMIT 1", farmerId, map = ::mapUser).firstOrNull()
 
     /** Creates a farm profile for a newly registered farmer and links the account to it. */
-    fun createFarm(userId: Long, ownerName: String, farmName: String, province: String, fallbackImage: String): Int = tx {
+    fun createFarm(userId: Long, ownerName: String, farmName: String, province: String, fallbackImage: String, bannerImage: String = fallbackImage): Int = tx {
         val id = query("SELECT COALESCE(MAX(id),0)+1 FROM farmers") { it.getInt(1) }.first()
         saveFarmer(FarmerProfile(id, ownerName.trim(), "Farm Owner", farmName.trim(), province.trim(), province.trim(), 0,
-            fallbackImage, fallbackImage, "", "", "", emptyList(), emptyList(), emptyList(), emptyList(), 0, 0.0, 0,
+            fallbackImage, bannerImage, "", "", "", emptyList(), emptyList(), emptyList(), emptyList(), 0, 0.0, 0,
             "1st generation", "—", emptyList()))
         exec("UPDATE users SET farmer_id=? WHERE id=?", id, userId)
         id
