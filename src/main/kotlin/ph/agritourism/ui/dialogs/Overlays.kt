@@ -129,9 +129,9 @@ private fun ProfileModal(s: AppState) {
             var error by remember { mutableStateOf<String?>(null) }
             H2(s.displayName); Pill("${s.userRole.key} Account".uppercase())
             InfoTile("Email Address", s.userEmail, Icons.Outlined.Mail, Modifier.fillMaxWidth())
-            Field("Full Name", name, { name = it }, Modifier.fillMaxWidth())
-            Field("Contact Phone", phone, { phone = it }, Modifier.fillMaxWidth())
-            error?.let { Text(it, color = Palette.Red, fontSize = 12.sp) }
+            Field("Full Name", name, { name = it }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
+            Field("Contact Phone", phone, { v -> phone = v.filter { it.isDigit() || it in "+ -()" } }, Modifier.fillMaxWidth(), "+63 912 345 6789", icon = Icons.Outlined.Phone)
+            ErrorBanner(error)
             PrimaryButton("Save Profile", Modifier.fillMaxWidth()) {
                 error = if (name.trim() == s.displayName && phone.trim() == s.currentUser?.phone.orEmpty()) null else s.updateProfile(name, phone)
                 if (error == null) close()
@@ -232,10 +232,8 @@ fun isValidDate(v: String) = runCatching { java.time.LocalDate.parse(v) }.isSucc
 
 @Composable
 fun DateField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Field(label, value, onChange, placeholder = "YYYY-MM-DD")
-        if (!isValidDate(value)) Text("Use format YYYY-MM-DD", fontSize = 10.sp, color = Palette.Red)
-    }
+    Field(label, value, { v -> onChange(v.filter { it.isDigit() || it == '-' }.take(10)) }, modifier, "YYYY-MM-DD", icon = Icons.Outlined.CalendarMonth,
+        error = if (value.isNotEmpty() && !isValidDate(value)) "Use format YYYY-MM-DD" else null)
 }
 
 // ------------------------------------------------------------------ write review
@@ -256,7 +254,7 @@ private fun ReviewModal(s: AppState, b: ph.agritourism.model.Booking) {
                 }
                 Spacer(Modifier.width(10.dp)); Text("$rating / 5", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterVertically))
             }
-            Field("Your Review", comment, { comment = it.take(1000) }, Modifier.fillMaxWidth(), "Tell other tourists about your visit…", singleLine = false, minLines = 4)
+            Field("Your Review", comment, { comment = it }, Modifier.fillMaxWidth(), "Tell other tourists about your visit…", singleLine = false, minLines = 4, maxLength = 1000)
             error?.let { Text(it, color = Palette.Red, fontSize = 12.sp) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Post Review", Modifier.weight(1f), Icons.Outlined.Send) { error = s.submitReview(b.id, rating, comment) }

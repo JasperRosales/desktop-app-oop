@@ -44,13 +44,13 @@ fun CheckoutPage(s: AppState) {
             H2("Shipping & Contact Information")
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Field("Recipient Full Name", s.recipientName, { s.recipientName = it }, Modifier.weight(1f))
-                Field("Mobile Contact Number", s.contactPhone, { s.contactPhone = it }, Modifier.weight(1f))
+                Field("Recipient Full Name", s.recipientName, { s.recipientName = it }, Modifier.weight(1f), "Who will receive the order", icon = Icons.Outlined.Person)
+                Field("Mobile Contact Number", s.contactPhone, { v -> s.contactPhone = v.filter { it.isDigit() || it in "+ -()" } }, Modifier.weight(1f), "+63 912 345 6789", icon = Icons.Outlined.Phone)
             }
             Spacer(Modifier.height(12.dp))
-            Field("Delivery Address", s.deliveryAddress, { s.deliveryAddress = it }, singleLine = false, minLines = 3)
+            Field("Delivery Address", s.deliveryAddress, { s.deliveryAddress = it }, placeholder = "House no., street, barangay, city, province", singleLine = false, minLines = 3, icon = Icons.Outlined.Home)
             Spacer(Modifier.height(12.dp))
-            Field("Special Rider Instructions", s.deliveryNotes, { s.deliveryNotes = it })
+            Field("Special Rider Instructions", s.deliveryNotes, { s.deliveryNotes = it }, placeholder = "Optional — landmarks, gate code, etc.", icon = Icons.Outlined.EditNote, maxLength = 200)
             Spacer(Modifier.height(18.dp))
             Row { SecondaryButton("Back to Cart") { s.checkoutStep = 1 }; Spacer(Modifier.weight(1f)); PrimaryButton("Proceed to Payment Method →") { s.deliveryDetailsError()?.let(s::showToast) ?: run { s.checkoutStep = 3 } } }
         }

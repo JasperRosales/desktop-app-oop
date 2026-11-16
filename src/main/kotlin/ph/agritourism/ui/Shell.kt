@@ -57,11 +57,11 @@ fun AppShell(s: AppState) {
 private fun TopBar(s: AppState) {
     Row(Modifier.fillMaxWidth().height(60.dp).shadow(3.dp, ambientColor = Color(0x14000000), spotColor = Color(0x14000000)).background(Color.White.copy(alpha = 0.97f)).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        IconButton({ s.isSidebarCollapsed = !s.isSidebarCollapsed }, Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, Palette.Border, RoundedCornerShape(10.dp))) {
+        IconButton({ s.isSidebarCollapsed = !s.isSidebarCollapsed }, Modifier.handCursor().size(36.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, Palette.Border, RoundedCornerShape(10.dp))) {
             Icon(if (s.isSidebarCollapsed) Icons.AutoMirrored.Outlined.ViewSidebar else Icons.AutoMirrored.Outlined.MenuOpen, "Toggle sidebar", tint = Palette.Ink)
         }
         Spacer(Modifier.width(12.dp))
-        Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { s.navigate(if (s.isLoggedIn) Page.DASHBOARD else Page.HOME) }.padding(4.dp),
+        Row(Modifier.clip(RoundedCornerShape(10.dp)).handCursor().clickable { s.navigate(if (s.isLoggedIn) Page.DASHBOARD else Page.HOME) }.padding(4.dp),
             verticalAlignment = Alignment.CenterVertically) {
             AsyncImage("res:icons/pwa-192x192.png", Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)))
             Spacer(Modifier.width(10.dp))
@@ -88,7 +88,7 @@ private fun TopBar(s: AppState) {
             }
             if (s.isTourist) {
                 Row(Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp))
-                    .clickable { s.checkoutStep = 1; s.navigate(Page.CART_CHECKOUT) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    .handCursor().clickable { s.checkoutStep = 1; s.navigate(Page.CART_CHECKOUT) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     BadgedBox({ if (s.cart.isNotEmpty()) Badge(containerColor = Palette.Forest) { Text("${s.cart.size}") } }) {
                         Icon(Icons.Outlined.ShoppingBag, "Cart", tint = Palette.Forest, modifier = Modifier.size(18.dp))
@@ -98,7 +98,7 @@ private fun TopBar(s: AppState) {
                 }
             }
             Spacer(Modifier.width(12.dp))
-            Row(Modifier.clip(RoundedCornerShape(12.dp)).clickable { s.isProfileModalOpen = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clip(RoundedCornerShape(12.dp)).handCursor().clickable { s.isProfileModalOpen = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Avatar(s.avatar, 34.dp)
                 Spacer(Modifier.width(8.dp))
                 Column {
@@ -118,7 +118,7 @@ private fun TopBar(s: AppState) {
 
 @Composable
 private fun BadgedIcon(icon: ImageVector, count: Int, desc: String, onClick: () -> Unit) {
-    IconButton(onClick, Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp))) {
+    IconButton(onClick, Modifier.handCursor().size(40.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp))) {
         BadgedBox({ if (count > 0) Badge(containerColor = Palette.Amber) { Text("$count") } }) { Icon(icon, desc, tint = Palette.Forest) }
     }
 }
@@ -138,11 +138,13 @@ private fun Sidebar(s: AppState) {
             Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Palette.Mint), contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.Eco, null, tint = Palette.Forest)
             }
-            if (expanded) {
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("AgriTourism", fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = Palette.Deep)
-                    Text("FARM · CONNECT · EXPERIENCE", fontSize = 9.sp, color = Palette.Forest, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            AnimatedVisibility(expanded, enter = fadeIn(androidx.compose.animation.core.tween(220, 90)), exit = fadeOut(androidx.compose.animation.core.tween(90))) {
+                Row {
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("AgriTourism", fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = Palette.Deep, softWrap = false)
+                        Text("FARM · CONNECT · EXPERIENCE", fontSize = 9.sp, color = Palette.Forest, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, softWrap = false)
+                    }
                 }
             }
         }
@@ -190,17 +192,19 @@ private fun Sidebar(s: AppState) {
         HorizontalDivider(color = Palette.Border)
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             if (s.isLoggedIn) {
-                Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { s.isProfileModalOpen = true }, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).handCursor().clickable { s.isProfileModalOpen = true }, verticalAlignment = Alignment.CenterVertically) {
                     Avatar(s.avatar, 40.dp)
-                    if (expanded) {
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(s.displayName, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Palette.Deep)
-                            Text(s.userRole.subtitle, fontSize = 11.sp, color = Palette.Forest)
+                    AnimatedVisibility(expanded, enter = fadeIn(androidx.compose.animation.core.tween(220, 90)), exit = fadeOut(androidx.compose.animation.core.tween(90))) {
+                        Row {
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(s.displayName, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Palette.Deep, softWrap = false)
+                                Text(s.userRole.subtitle, fontSize = 11.sp, color = Palette.Forest, softWrap = false)
+                            }
                         }
                     }
                 }
-                if (expanded) IconButton({ s.signOut() }) { Icon(Icons.AutoMirrored.Outlined.Logout, "Sign Out", tint = Palette.Muted) }
+                if (expanded) IconButton({ s.signOut() }, Modifier.handCursor()) { Icon(Icons.AutoMirrored.Outlined.Logout, "Sign Out", tint = Palette.Muted) }
             } else {
                 Icon(Icons.Outlined.Monitor, null, tint = Palette.Forest)
                 if (expanded) {
@@ -227,14 +231,17 @@ private fun NavItem(icon: ImageVector, label: String, active: Boolean, expanded:
     TooltipArea(tooltip = { if (!expanded) Surface(shape = RoundedCornerShape(8.dp), color = Palette.Deep, shadowElevation = 6.dp) { Text(label, Modifier.padding(8.dp), color = Color.White, fontSize = 12.sp) } }) {
         Box(contentAlignment = Alignment.CenterStart) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(bg)
-                .hoverable(interaction).clickable(interaction, LocalIndication.current, onClick = onClick)
+                .hoverable(interaction).handCursor().clickable(interaction, LocalIndication.current, onClick = onClick)
                 .padding(horizontal = 14.dp, vertical = 11.dp).offset(x = nudge), verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, label, Modifier.size(20.dp), tint = fg)
-                if (expanded) {
-                    Spacer(Modifier.width(14.dp))
-                    Text(label, Modifier.weight(1f), fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold, fontSize = 13.sp, color = fg,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (badge != null) Pill(badge, if (active) Color.White.copy(alpha = 0.2f) else Palette.Mint, if (active) Color.White else Palette.Forest)
+                AnimatedVisibility(expanded, Modifier.weight(1f), enter = fadeIn(androidx.compose.animation.core.tween(220, 90)) + slideInHorizontally { -it / 6 },
+                    exit = fadeOut(androidx.compose.animation.core.tween(90))) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.width(14.dp))
+                        Text(label, Modifier.weight(1f), fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold, fontSize = 13.sp, color = fg,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                        if (badge != null) Pill(badge, if (active) Color.White.copy(alpha = 0.2f) else Palette.Mint, if (active) Color.White else Palette.Forest)
+                    }
                 }
             }
             Box(Modifier.offset(x = (-12).dp).width(4.dp).height(bar).clip(RoundedCornerShape(2.dp)).background(Palette.Forest))
@@ -300,6 +307,7 @@ private fun AccessDeniedNotice(s: AppState) {
 
 @Composable
 private fun Toast(s: AppState, modifier: Modifier) {
+    val msg = rememberLast(s.toastMessage)
     AnimatedVisibility(s.toastMessage != null, modifier.padding(bottom = 28.dp),
         enter = fadeIn(androidx.compose.animation.core.tween(200)) + slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) { it } + scaleIn(initialScale = 0.9f),
         exit = fadeOut(androidx.compose.animation.core.tween(160)) + slideOutVertically { it / 2 }) {
@@ -307,7 +315,9 @@ private fun Toast(s: AppState, modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 14.dp).widthIn(max = 640.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.AutoAwesome, null, tint = Color(0xFF86EFAC))
             Spacer(Modifier.width(10.dp))
-            Text(s.toastMessage ?: "", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(msg.orEmpty(), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(Modifier.width(12.dp))
+            Icon(Icons.Filled.Close, "Dismiss", Modifier.size(16.dp).clip(CircleShape).handCursor().clickable { s.toastMessage = null }, tint = Color.White.copy(alpha = 0.7f))
         }
     }
 }

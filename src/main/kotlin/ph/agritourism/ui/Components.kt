@@ -1,6 +1,25 @@
 package ph.agritourism.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -88,7 +107,7 @@ fun GlassCard(modifier: Modifier = Modifier, padding: Dp = 20.dp, onClick: (() -
             .clip(shape)
             .background(Palette.Glass)
             .border(1.dp, border, shape)
-            .then(if (onClick != null) Modifier.clickable(interaction, LocalIndication.current, onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.handCursor().clickable(interaction, LocalIndication.current, onClick = onClick) else Modifier)
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
             .padding(padding),
         content = content,
@@ -134,8 +153,7 @@ fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, 
         modifier
             .height(height)
             .hoverable(interaction)
-            .border(ring, Palette.Forest.copy(alpha = 0.12f), shape)
-            .padding(ring)
+            .focusRing(ring, Palette.Forest.copy(alpha = 0.14f), height / 2)
             .clip(shape)
             .background(Color.White)
             .border(1.dp, border, shape),
@@ -152,7 +170,7 @@ fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, 
                     inner()
                 }
                 AnimatedVisibility(value.isNotEmpty(), enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.6f), exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f)) {
-                    Box(Modifier.size(24.dp).clip(CircleShape).clickable { onChange("") }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(24.dp).clip(CircleShape).handCursor().clickable { onChange("") }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Close, "Clear search", Modifier.size(14.dp), tint = Palette.Muted)
                     }
                 }
@@ -169,13 +187,13 @@ fun H2(text: String) = Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold
 fun Sub(text: String, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE) =
     Text(text, fontSize = 13.sp, color = Palette.Muted, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 @Composable
-fun Label(text: String) = Text(text.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Muted, letterSpacing = 0.6.sp)
+fun Label(text: String, color: Color = Palette.Muted) = Text(text.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = color, letterSpacing = 0.6.sp)
 
 @Composable
 fun PrimaryButton(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true, color: Color = Palette.Forest, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val scale = pressScale(interaction)
-    Button(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+    Button(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }.handCursor(enabled), enabled = enabled, shape = RoundedCornerShape(12.dp),
         interactionSource = interaction,
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, hoveredElevation = 6.dp, pressedElevation = 0.dp),
         colors = ButtonDefaults.buttonColors(containerColor = color), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
@@ -190,7 +208,7 @@ fun SecondaryButton(text: String, modifier: Modifier = Modifier, icon: ImageVect
     val scale = pressScale(interaction)
     val hovered by interaction.collectIsHoveredAsState()
     val bg by animateColorAsState(if (hovered) color.copy(alpha = 0.07f) else Color.Transparent, tween(160), label = "sec-bg")
-    OutlinedButton(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+    OutlinedButton(onClick, modifier.graphicsLayer { scaleX = scale; scaleY = scale }.handCursor(enabled), enabled = enabled, shape = RoundedCornerShape(12.dp),
         interactionSource = interaction,
         border = BorderStroke(1.dp, color.copy(alpha = 0.35f)), colors = ButtonDefaults.outlinedButtonColors(contentColor = color, containerColor = bg),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
@@ -219,7 +237,7 @@ fun FilterChipRow(options: List<String>, selected: String, label: (String) -> St
             Text(label(o), Modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(50))
                 .background(bg)
                 .border(1.dp, border, RoundedCornerShape(50))
-                .hoverable(interaction).clickable(interaction, LocalIndication.current) { onSelect(o) }.padding(horizontal = 14.dp, vertical = 7.dp),
+                .hoverable(interaction).handCursor().clickable(interaction, LocalIndication.current) { onSelect(o) }.padding(horizontal = 14.dp, vertical = 7.dp),
                 color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -236,46 +254,188 @@ fun statusColors(status: String): Pair<Color, Color> = when (status) {
 @Composable
 fun StatusPill(status: String) { val (bg, fg) = statusColors(status); Pill(status, bg, fg) }
 
+/** Remembers the last non-null value so exit animations keep showing their content. */
+@Composable
+fun <T : Any> rememberLast(value: T?): T? {
+    val holder = remember { arrayOfNulls<Any>(1) }
+    if (value != null) holder[0] = value
+    @Suppress("UNCHECKED_CAST") return holder[0] as T?
+}
+
+/** Soft focus halo drawn outside the bounds so it never shifts layout. */
+fun Modifier.focusRing(width: Dp, color: Color, corner: Dp): Modifier = drawBehind {
+    val r = width.toPx()
+    if (r > 0.1f) drawRoundRect(color, Offset(-r, -r), Size(size.width + 2 * r, size.height + 2 * r), CornerRadius(corner.toPx() + r))
+}
+
+fun Modifier.handCursor(enabled: Boolean = true): Modifier = if (enabled) pointerHoverIcon(PointerIcon.Hand) else this
+
+/** Horizontal shake played whenever [trigger] changes to a non-null value. */
+@Composable
+private fun shakeOffset(trigger: Any?): Float {
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(trigger) {
+        if (trigger != null) for (x in listOf(-9f, 8f, -6f, 4f, -2f, 0f)) shake.animateTo(x, tween(45))
+    }
+    return shake.value
+}
+
 @Composable
 fun Field(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "",
-          singleLine: Boolean = true, minLines: Int = 1, enabled: Boolean = true, password: Boolean = false, number: Boolean = false) {
+          singleLine: Boolean = true, minLines: Int = 1, enabled: Boolean = true, password: Boolean = false, number: Boolean = false,
+          icon: ImageVector? = null, error: String? = null, helper: String? = null, maxLength: Int? = null, onSubmit: (() -> Unit)? = null) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
+    var reveal by remember { mutableStateOf(false) }
+    val isError = error != null
+    val accent = if (isError) Palette.Red else Palette.Forest
+    val border by animateColorAsState(when {
+        !enabled -> Palette.Border; isError -> Palette.Red; focused -> Palette.Forest
+        hovered -> Palette.Forest.copy(alpha = 0.45f); else -> Palette.Border }, tween(180), label = "field-border")
+    val ring by animateDpAsState(if (focused && enabled) 4.dp else if (isError) 3.dp else 0.dp, spring(stiffness = Spring.StiffnessMedium), label = "field-ring")
+    val ringColor by animateColorAsState(accent.copy(alpha = if (focused) 0.15f else 0.08f), tween(180), label = "field-ring-c")
+    val tint by animateColorAsState(when { isError -> Palette.Red; focused -> Palette.Forest; else -> Palette.Muted }, tween(180), label = "field-tint")
+    val bg by animateColorAsState(if (enabled) Color.White else Color(0xFFF3F5F4), tween(180), label = "field-bg")
+    val dx = shakeOffset(error)
+    val shape = RoundedCornerShape(12.dp)
     Column(modifier) {
-        if (label.isNotEmpty()) { Label(label); Spacer(Modifier.height(4.dp)) }
-        OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, singleLine = singleLine, minLines = minLines,
-            placeholder = { Text(placeholder, fontSize = 13.sp) }, textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
-            shape = RoundedCornerShape(12.dp),
-            visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Forest, unfocusedBorderColor = Palette.Border,
-                focusedContainerColor = Color.White, unfocusedContainerColor = Color.White))
+        if (label.isNotEmpty()) { Label(label, tint.takeIf { focused || isError } ?: Palette.Muted); Spacer(Modifier.height(5.dp)) }
+        BasicTextField(
+            value, { v -> onChange(if (maxLength != null) v.take(maxLength) else v) },
+            Modifier.fillMaxWidth()
+                .graphicsLayer { translationX = dx * density }
+                .focusRing(ring, ringColor, 12.dp)
+                .clip(shape).background(bg).border(1.dp, border, shape)
+                .hoverable(interaction)
+                .onPreviewKeyEvent {
+                    if (onSubmit != null && singleLine && it.type == KeyEventType.KeyDown && (it.key == Key.Enter || it.key == Key.NumPadEnter)) { onSubmit(); true } else false
+                },
+            enabled = enabled, singleLine = singleLine, minLines = minLines, maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+            interactionSource = interaction,
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, color = if (enabled) Color(0xFF1E1E1E) else Palette.Muted),
+            cursorBrush = SolidColor(accent),
+            visualTransformation = if (password && !reveal) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = when { number -> KeyboardOptions(keyboardType = KeyboardType.Number); password -> KeyboardOptions(keyboardType = KeyboardType.Password); else -> KeyboardOptions.Default },
+            decorationBox = { inner ->
+                Row(Modifier.then(if (singleLine) Modifier.heightIn(min = 44.dp) else Modifier).padding(start = 12.dp, end = 6.dp, top = if (singleLine) 0.dp else 11.dp, bottom = if (singleLine) 0.dp else 11.dp),
+                    verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top) {
+                    if (icon != null) { Icon(icon, null, Modifier.size(17.dp), tint = tint); Spacer(Modifier.width(9.dp)) }
+                    Box(Modifier.weight(1f).padding(end = 6.dp), contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart) {
+                        if (value.isEmpty()) Text(placeholder, fontSize = 13.sp, color = Palette.Muted.copy(alpha = 0.7f), maxLines = if (singleLine) 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+                        inner()
+                    }
+                    if (password) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).handCursor().clickable { reveal = !reveal }, contentAlignment = Alignment.Center) {
+                            Crossfade(reveal, animationSpec = tween(160), label = "pw-eye") { r ->
+                                Icon(if (r) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, if (r) "Hide password" else "Show password", Modifier.size(17.dp), tint = tint)
+                            }
+                        }
+                    } else if (singleLine && enabled) {
+                        AnimatedVisibility(value.isNotEmpty() && (focused || hovered), enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.6f), exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f)) {
+                            Box(Modifier.size(26.dp).clip(CircleShape).handCursor().clickable { onChange("") }, contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Close, "Clear", Modifier.size(14.dp), tint = Palette.Muted)
+                            }
+                        }
+                    }
+                }
+            },
+        )
+        val supporting = error ?: helper
+        val shown = rememberLast(supporting)
+        AnimatedVisibility(supporting != null || maxLength != null, enter = fadeIn(tween(180)) + expandVertically(spring(stiffness = Spring.StiffnessMedium)),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(160))) {
+            Row(Modifier.fillMaxWidth().padding(top = 5.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (shown != null && supporting != null) {
+                    if (isError) { Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(13.dp), tint = Palette.Red); Spacer(Modifier.width(4.dp)) }
+                    Text(shown, Modifier.weight(1f), fontSize = 11.sp, color = if (isError) Palette.Red else Palette.Muted)
+                } else Spacer(Modifier.weight(1f))
+                if (maxLength != null) Text("${value.length}/$maxLength", fontSize = 10.sp, color = if (value.length >= maxLength) Palette.Amber else Palette.Muted)
+            }
+        }
+    }
+}
+
+/** Animated inline error banner; slides in when [message] is set and out when cleared. */
+@Composable
+fun ErrorBanner(message: String?, modifier: Modifier = Modifier) {
+    val shown = rememberLast(message)
+    val dx = shakeOffset(message)
+    AnimatedVisibility(message != null, modifier, enter = fadeIn(tween(180)) + expandVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(160))) {
+        Row(Modifier.padding(top = 10.dp).fillMaxWidth().graphicsLayer { translationX = dx * density }.clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFEF2F2)).border(1.dp, Color(0xFFFECACA), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(16.dp), tint = Palette.Red)
+            Spacer(Modifier.width(8.dp))
+            Text(shown.orEmpty(), fontSize = 12.sp, color = Color(0xFF991B1B), fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
 @Composable
 fun <T> Dropdown(label: String, options: List<T>, selected: T, text: (T) -> String, modifier: Modifier = Modifier, onSelect: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val border by animateColorAsState(when { open -> Palette.Forest; hovered -> Palette.Forest.copy(alpha = 0.45f); else -> Palette.Border }, tween(180), label = "dd-border")
+    val ring by animateDpAsState(if (open) 4.dp else 0.dp, spring(stiffness = Spring.StiffnessMedium), label = "dd-ring")
+    val rot by animateFloatAsState(if (open) 180f else 0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium), label = "dd-rot")
+    var anchorWidth by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val shape = RoundedCornerShape(12.dp)
     Column(modifier) {
-        if (label.isNotEmpty()) { Label(label); Spacer(Modifier.height(4.dp)) }
+        if (label.isNotEmpty()) { Label(label, if (open) Palette.Forest else Palette.Muted); Spacer(Modifier.height(5.dp)) }
         Box {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
-                .border(1.dp, Palette.Border, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).onSizeChanged { anchorWidth = it.width }
+                .focusRing(ring, Palette.Forest.copy(alpha = 0.15f), 12.dp)
+                .clip(shape).background(Color.White).border(1.dp, border, shape)
+                .hoverable(interaction).handCursor().clickable(interaction, LocalIndication.current) { open = !open }.padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(text(selected), Modifier.weight(1f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Filled.ExpandMore, null, tint = Palette.Muted)
+                Text(text(selected), Modifier.weight(1f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF1E1E1E))
+                Icon(Icons.Filled.ExpandMore, null, Modifier.graphicsLayer { rotationZ = rot }, tint = if (open) Palette.Forest else Palette.Muted)
             }
-            DropdownMenu(open, { open = false }) {
-                options.forEach { o -> DropdownMenuItem({ Text(text(o), fontSize = 13.sp) }, { onSelect(o); open = false }) }
+            DropdownMenu(open, { open = false }, Modifier.width(with(density) { anchorWidth.toDp() }).background(Color.White)) {
+                options.forEach { o ->
+                    val sel = o == selected
+                    DropdownMenuItem(
+                        { Text(text(o), fontSize = 13.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, color = if (sel) Palette.Forest else Color(0xFF1E1E1E)) },
+                        { onSelect(o); open = false },
+                        Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(8.dp)).background(if (sel) Palette.Mint else Color.Transparent).handCursor(),
+                        trailingIcon = if (sel) ({ Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = Palette.Forest) }) else null,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun Stepper(value: Int, suffix: String, onChange: (Int) -> Unit) {
+private fun StepButton(icon: ImageVector, desc: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val scale = pressScale(interaction)
+    val alpha by animateFloatAsState(if (enabled) 1f else 0.35f, tween(160), label = "step-a")
+    Box(Modifier.size(34.dp).graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }.clip(CircleShape)
+        .background(if (filled) Palette.Forest else Palette.Mint)
+        .hoverable(interaction).handCursor(enabled).clickable(interaction, LocalIndication.current, enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center) {
+        Icon(icon, desc, Modifier.size(18.dp), tint = if (filled) Color.White else Palette.Deep)
+    }
+}
+
+@Composable
+fun Stepper(value: Int, suffix: String, min: Int = 1, max: Int = 999, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton({ onChange(maxOf(1, value - 1)) }, Modifier.size(34.dp).clip(CircleShape).background(Palette.Mint)) { Icon(Icons.Filled.Remove, "Decrease") }
-        Text("$value $suffix", Modifier.padding(horizontal = 14.dp), fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
-        IconButton({ onChange(value + 1) }, Modifier.size(34.dp).clip(CircleShape).background(Palette.Forest)) { Icon(Icons.Filled.Add, "Increase", tint = Color.White) }
+        StepButton(Icons.Filled.Remove, "Decrease", false, value > min) { onChange(maxOf(min, value - 1)) }
+        Row(Modifier.padding(horizontal = 14.dp).widthIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+            AnimatedContent(value, transitionSpec = {
+                val up = targetState > initialState
+                (slideInVertically(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium)) { if (up) it else -it } + fadeIn(tween(150))) togetherWith
+                    (slideOutVertically(tween(150)) { if (up) -it else it } + fadeOut(tween(120))) using SizeTransform(clip = false)
+            }, label = "stepper") { v -> Text("$v", fontWeight = FontWeight.ExtraBold, color = Palette.Deep, fontSize = 15.sp) }
+            if (suffix.isNotEmpty()) Text(" $suffix", fontWeight = FontWeight.ExtraBold, color = Palette.Deep, fontSize = 15.sp)
+        }
+        StepButton(Icons.Filled.Add, "Increase", true, value < max) { onChange(minOf(max, value + 1)) }
     }
 }
 
@@ -303,7 +463,7 @@ fun ModalHeader(title: String, subtitle: String? = null, icon: ImageVector? = nu
             if (subtitle != null) Text(subtitle.uppercase(), color = Color(0xFF86EFAC), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
             Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
         }
-        IconButton(onClose) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
+        IconButton(onClose, Modifier.handCursor()) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
     }
 }
 
@@ -359,7 +519,7 @@ fun PhotoCard(image: String, title: String, locationTag: String, rating: Double,
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0x55000000))))
             Pill(locationTag, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopStart).padding(12.dp))
             val heart by animateFloatAsState(if (favorited) 1f else 0.85f, spring(dampingRatio = 0.35f, stiffness = Spring.StiffnessMedium), label = "heart")
-            IconButton(onFavorite, Modifier.align(Alignment.TopEnd).padding(8.dp).size(36.dp).graphicsLayer { scaleX = heart + 0.15f; scaleY = heart + 0.15f }.clip(CircleShape).background(Color.White.copy(alpha = 0.9f))) {
+            IconButton(onFavorite, Modifier.handCursor().align(Alignment.TopEnd).padding(8.dp).size(36.dp).graphicsLayer { scaleX = heart + 0.15f; scaleY = heart + 0.15f }.clip(CircleShape).background(Color.White.copy(alpha = 0.9f))) {
                 Icon(if (favorited) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, "Save to favorites", tint = Color(0xFFEF4444))
             }
         }
