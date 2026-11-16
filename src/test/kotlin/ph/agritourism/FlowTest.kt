@@ -9,6 +9,8 @@ import ph.agritourism.model.Role
 import ph.agritourism.ui.AppState
 import ph.agritourism.ui.ImageLoader
 import ph.agritourism.ui.Page
+import ph.agritourism.ui.TOUR_TIME_SLOTS
+import ph.agritourism.model.slotKey
 import java.io.File
 import kotlin.test.*
 
@@ -256,5 +258,55 @@ class FlowTest {
 
         // Signing out clears the session's private data.
         s.signOut(); assertTrue(s.cart.isEmpty() && s.favoriteIds.isEmpty() && s.visibleBookings.isEmpty())
+    }
+
+    @Test fun noDoubleBookings() {
+        s.loginAs(Role.USER)
+        s.selectedTour = s.tours[0]; s.tourTime = TOUR_TIME_SLOTS[0]; s.bookSelectedTour()
+        val n = s.bookings.size
+        // Same tourist, same date + slot (even at a different farm) is rejected.
+        s.selectedTour = s.tours[2]; s.bookSelectedTour(); assertEquals(n, s.bookings.size)
+        s.selectedFruit = s.fruitPicking[0]; s.fruitDate = s.tourDate; s.fruitTime = "08:00 AM - Early"; s.bookSelectedFruit()
+        assertEquals(n, s.bookings.size)
+        // Different slot is fine; rescheduling into an occupied slot is rejected.
+        s.tourTime = TOUR_TIME_SLOTS[1]; s.bookSelectedTour(); assertEquals(n + 1, s.bookings.size)
+        val second = s.bookings.first()
+        s.editingBooking = second.copy(tourTime = "08:00 AM"); s.saveEditedBooking()
+        assertEquals(TOUR_TIME_SLOTS[1], s.bookings.first { it.id == second.id }.tourTime)
+        // Cancelling frees the slot.
+        s.cancelBooking(s.bookings.first { it.tourTime == TOUR_TIME_SLOTS[0] && it.customerEmail == Role.USER.email }.id)
+        s.selectedTour = s.tours[2]; s.tourTime = TOUR_TIME_SLOTS[0]; s.bookSelectedTour(); assertEquals(n + 2, s.bookings.size)
+        // The database itself refuses a duplicate even if the app check is bypassed.
+        val dup = s.bookings.first().copy(id = 999_999L, bookingCode = "BK-DUP")
+        assertFailsWith<Database.DoubleBookingException> { db.saveBooking(dup) }
+        assertFails { db.runSql("INSERT INTO bookings (id, booking_code, status, slot_key) VALUES (999998, 'X', 'Confirmed', '${dup.slotKey()}')") }
+        // A different customer can take the same slot.
+        s.loginAs(Role.FARMER); s.newBookingCustomer = "Walk In"; s.newBookingDate = s.tourDate; s.newBookingTime = TOUR_TIME_SLOTS[0]
+        s.saveFarmerBooking(); assertEquals("Walk In", s.bookings.first().customerName)
+    }
+
+    @Test fun touristReviews() {
+        s.loginAs(Role.USER)
+        val b = s.bookings.first { it.id == 101L }
+        assertFalse(s.canReview(b)) // visit hasn't happened yet
+        assertNotNull(s.submitReview(b.id, 5, "Wonderful farm visit!"))
+        s.loginAs(Role.FARMER); s.checkInBooking(b.id)
+        assertNotNull(s.submitReview(b.id, 5, "Farmers cannot review")) // not a tourist
+        s.loginAs(Role.USER)
+        assertTrue(s.canReview(s.bookings.first { it.id == b.id }))
+        assertNotNull(s.submitReview(b.id, 0, "Bad rating value here")); assertNotNull(s.submitReview(b.id, 4, "short"))
+        assertNotNull(s.submitReview(103L, 4, "Not my booking at all")) // someone else's booking
+        val target = b.activityType to b.farmId
+        val before = if (target.first == "tour") s.tours.first { it.id == target.second }.reviewsCount else s.fruitPicking.first { it.id == target.second }.reviewsCount
+        assertNull(s.submitReview(b.id, 4, "Loved picking oranges with the kids!"))
+        assertNotNull(s.submitReview(b.id, 5, "Trying to review a second time")) // once per booking
+        val s2 = reopen().loginAs(Role.USER)
+        val r = s2.reviewForBooking(b.id)!!
+        assertEquals(4, r.rating); assertEquals(Role.USER.email, r.userEmail)
+        assertTrue(r in s2.reviewsFor(target.first, target.second))
+        val after = if (target.first == "tour") s2.tours.first { it.id == target.second }.reviewsCount else s2.fruitPicking.first { it.id == target.second }.reviewsCount
+        assertEquals(before + 1, after)
+        assertFalse(s2.canReview(s2.bookings.first { it.id == b.id }))
+        assertFails { db.runSql("INSERT INTO reviews (id, author, booking_id) VALUES (9999, 'x', ${b.id})") } // DB enforces one per booking
     }
 }

@@ -12,6 +12,26 @@ enum class Role(val key: String, val displayName: String, val subtitle: String, 
     }
 }
 
+/** Parses ISO (2026-11-20) or display (Nov 20, 2026) dates. */
+fun parseDate(d: String): java.time.LocalDate? {
+    val t = d.trim()
+    return runCatching { java.time.LocalDate.parse(t) }.getOrNull()
+        ?: runCatching { java.time.LocalDate.parse(t, java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.ENGLISH)) }.getOrNull()
+}
+
+/** Start time of a slot label, e.g. "08:00 AM - Morning Agro-Walk" -> "08:00 AM". */
+fun slotTime(t: String): String = t.substringBefore(" - ").trim().uppercase()
+
+/**
+ * Identifies "the same person at the same date and time". A customer may hold only one active
+ * booking per slot. Registered tourists are matched by email; walk-ins by name + phone digits.
+ */
+fun Booking.slotKey(): String {
+    val who = customerEmail?.trim()?.lowercase()?.takeIf { it.isNotEmpty() && it != "tourist@agritourism.ph" } // old walk-in placeholder
+        ?: "walkin:${customerName.trim().lowercase()}:${customerPhone.orEmpty().filter(Char::isDigit)}"
+    return "$who|${parseDate(tourDate)?.toString() ?: tourDate.trim()}|${slotTime(tourTime)}"
+}
+
 data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role)
 
 @Serializable
@@ -92,6 +112,8 @@ data class Booking(
     val uploadedIdDoc: String? = null,
     val uploadedReceiptDoc: String? = null,
     val checkedInAt: String? = null,
+    /** "tour" (farmId is a tours.id) or "orchard" (farmId is a fruit_picking.id). */
+    val activityType: String = "tour",
 )
 
 @Serializable
@@ -144,6 +166,11 @@ data class CustomerReview(
     val date: String,
     val farmOrCrop: String,
     val comment: String,
+    val userEmail: String? = null,
+    val bookingId: Long? = null,
+    /** What was reviewed: "tour" / "orchard" plus its id, or null for general reviews. */
+    val targetType: String? = null,
+    val targetId: Int? = null,
 )
 
 @Serializable

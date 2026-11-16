@@ -37,6 +37,7 @@ fun Overlays(s: AppState) {
     s.selectedOrderForView?.let { OrderDossier(s, it.id) }
     s.selectedOrderForTracking?.let { TrackingInspector(s, it.id) }
     s.editingBooking?.let { EditBookingModal(s, it) }
+    s.reviewingBooking?.let { ReviewModal(s, it) }
     s.deletingBookingId?.let { DeleteConfirm(s, it) }
     if (s.isMockupDrawerOpen) MockupGallery(s)
     s.selectedFarmerForModal?.let { FarmerStoryModal(s, it) }
@@ -226,5 +227,33 @@ fun DateField(label: String, value: String, onChange: (String) -> Unit, modifier
     Column(modifier) {
         Field(label, value, onChange, placeholder = "YYYY-MM-DD")
         if (!isValidDate(value)) Text("Use format YYYY-MM-DD", fontSize = 10.sp, color = Palette.Red)
+    }
+}
+
+// ------------------------------------------------------------------ write review
+@Composable
+private fun ReviewModal(s: AppState, b: ph.agritourism.model.Booking) {
+    val close = { s.reviewingBooking = null }
+    var rating by remember { mutableStateOf(5) }
+    var comment by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    Modal(close, 520.dp) {
+        ModalHeader("Write a Review", "${b.activity} · ${b.tourDate}", Icons.Outlined.Star, close)
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Label("Your Rating")
+            Row {
+                (1..5).forEach { i ->
+                    Icon(Icons.Filled.Star, "$i star${if (i > 1) "s" else ""}", Modifier.size(34.dp).clip(CircleShape).clickable { rating = i }.padding(2.dp),
+                        tint = if (i <= rating) Palette.Amber else Color(0xFFE2E8F0))
+                }
+                Spacer(Modifier.width(10.dp)); Text("$rating / 5", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterVertically))
+            }
+            Field("Your Review", comment, { comment = it.take(1000) }, Modifier.fillMaxWidth(), "Tell other tourists about your visit…", singleLine = false, minLines = 4)
+            error?.let { Text(it, color = Palette.Red, fontSize = 12.sp) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Post Review", Modifier.weight(1f), Icons.Outlined.Send) { error = s.submitReview(b.id, rating, comment) }
+                SecondaryButton("Cancel") { close() }
+            }
+        }
     }
 }

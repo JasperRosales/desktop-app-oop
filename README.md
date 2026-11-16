@@ -58,6 +58,10 @@ the release. If Windows still shows a SmartScreen warning, check the SHA-256 has
   salted PBKDF2 hashes; new sign-ups can be tourists or farmers only.
 - Access is role-based: tourists see only their own bookings, orders, cart, favorites and notifications;
   farmers manage bookings, orders and the produce catalog; admins can do everything plus the SQL studio.
+- Tourists can review a booking after their visit (checked in or date passed), once per booking; the
+  rating is added to that tour's or orchard's average.
+- No double bookings: a customer can hold only one active booking per date and time slot. This is
+  enforced by a unique index in SQLite as well as in the app.
 - Admins can inspect/query tables in **View → SQL Database Studio**.
 - Release builds also attach a pre-seeded `agritourism.db` to the GitHub release. Point
   `AGRITOURISM_DB` at that file to run the app against it.

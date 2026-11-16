@@ -151,6 +151,29 @@ class Database(file: File = defaultFile()) {
     private fun migrate() {
         if ("customer_email" !in columns("orders")) exec("ALTER TABLE orders ADD COLUMN customer_email TEXT")
         if ("recipient_email" !in columns("notifications")) exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
+        val bookingCols = columns("bookings")
+        if ("activity_type" !in bookingCols) {
+            exec("ALTER TABLE bookings ADD COLUMN activity_type TEXT NOT NULL DEFAULT 'tour'")
+            classifyBookings()
+        }
+        if ("slot_key" !in bookingCols) exec("ALTER TABLE bookings ADD COLUMN slot_key TEXT")
+        // Fill slot keys for older rows; legacy duplicates get a unique suffix so the index can be built.
+        val seen = mutableSetOf<String>()
+        bookings().forEach { b ->
+            var key = b.slotKey()
+            if (b.status != "Cancelled" && !seen.add(key)) key += "#legacy-${b.id}"
+            exec("UPDATE bookings SET slot_key=? WHERE id=?", key, b.id)
+        }
+        // A customer can hold only one active (non-cancelled) booking per date + time slot.
+        exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_active_slot ON bookings(slot_key) WHERE status <> 'Cancelled'")
+        val reviewCols = columns("reviews")
+        if ("user_email" !in reviewCols) exec("ALTER TABLE reviews ADD COLUMN user_email TEXT")
+        if ("booking_id" !in reviewCols) exec("ALTER TABLE reviews ADD COLUMN booking_id INTEGER")
+        if ("target_type" !in reviewCols) exec("ALTER TABLE reviews ADD COLUMN target_type TEXT")
+        if ("target_id" !in reviewCols) exec("ALTER TABLE reviews ADD COLUMN target_id INTEGER")
+        // One review per booking.
+        exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_booking ON reviews(booking_id)")
+        linkSeedReviews()
         // Link existing orders to the account with the same name.
         exec("""UPDATE orders SET customer_email=(SELECT email FROM users WHERE lower(users.full_name)=lower(orders.customer_name) LIMIT 1)
                 WHERE customer_email IS NULL""")
@@ -179,6 +202,8 @@ class Database(file: File = defaultFile()) {
             s.orders.forEachIndexed { i, o -> saveOrder(o, i) }
             s.notifications.forEachIndexed { i, n -> saveNotification(n, i) }
             s.reviews.forEach(::saveReview)
+            classifyBookings()
+            linkSeedReviews()
             listOf(
                 Triple("Maria Santos", "maria.santos@gmail.com", "user"),
                 Triple("Juan Dela Cruz", "juan.delacruz@sunnyvalefarm.ph", "farmer"),
@@ -340,17 +365,45 @@ class Database(file: File = defaultFile()) {
     }
 
     // ------------------------------------------------------------------ bookings
+    /** Thrown when a booking would give a customer two active reservations in the same slot. */
+    class DoubleBookingException(val existing: Booking) : RuntimeException("Double booking with #${existing.bookingCode}")
+
+    /** Another active booking by the same customer at the same date and time, if any. */
+    fun conflictingBooking(b: Booking): Booking? {
+        if (b.status == "Cancelled") return null
+        val id = query("SELECT id FROM bookings WHERE slot_key=? AND status <> 'Cancelled' AND id <> ?", b.slotKey(), b.id) { it.getLong(1) }.firstOrNull()
+        return id?.let { cid -> bookings().firstOrNull { it.id == cid } }
+    }
+
     fun saveBooking(b: Booking, sortOrder: Int? = null) {
+        conflictingBooking(b)?.let { throw DoubleBookingException(it) }
         val order = sortOrder ?: existingSort("bookings", b.id) ?: (minSort("bookings") - 1)
+        val cols = listOf("id", "booking_code", "farm_id", "farm_name", "customer_name", "customer_phone",
+            "customer_email", "activity", "tour_date", "tour_time", "participants", "total_amount", "payment_method",
+            "status", "attendance_status", "assigned_guide", "special_requests", "uploaded_id_doc",
+            "uploaded_receipt_doc", "checked_in_at", "sort_order", "activity_type", "slot_key")
+        // Upsert on id only: INSERT OR REPLACE would silently delete a row that clashes on the slot index.
         exec(
-            insertSql("bookings", listOf("id", "booking_code", "farm_id", "farm_name", "customer_name", "customer_phone",
-                "customer_email", "activity", "tour_date", "tour_time", "participants", "total_amount", "payment_method",
-                "status", "attendance_status", "assigned_guide", "special_requests", "uploaded_id_doc",
-                "uploaded_receipt_doc", "checked_in_at", "sort_order")),
+            "INSERT INTO bookings (${cols.joinToString()}) VALUES (${cols.joinToString { "?" }}) " +
+                "ON CONFLICT(id) DO UPDATE SET ${cols.drop(1).joinToString { "$it=excluded.$it" }}",
             b.id, b.bookingCode, b.farmId, b.farmName, b.customerName, b.customerPhone, b.customerEmail, b.activity,
             b.tourDate, b.tourTime, b.participants, b.totalAmount, b.paymentMethod, b.status, b.attendanceStatus,
             b.assignedGuide, b.specialRequests, b.uploadedIdDoc, b.uploadedReceiptDoc, b.checkedInAt, order,
+            b.activityType, b.slotKey(),
         )
+    }
+
+    /** Older rows have no activity type: fruit-picking bookings point at fruit_picking ids. */
+    private fun classifyBookings() = exec(
+        """UPDATE bookings SET activity_type='orchard'
+           WHERE activity LIKE '%Picking%' OR farm_name IN (SELECT farm_name FROM fruit_picking WHERE fruit_picking.id=bookings.farm_id)""",
+    )
+
+    /** The bundled sample reviews are about specific tours. */
+    private fun linkSeedReviews() {
+        listOf(1 to 1, 2 to 2, 3 to 3).forEach { (reviewId, tourId) ->
+            exec("UPDATE reviews SET target_type='tour', target_id=? WHERE id=? AND target_type IS NULL AND booking_id IS NULL", tourId, reviewId)
+        }
     }
 
     fun deleteBooking(id: Long) = exec("DELETE FROM bookings WHERE id=?", id)
@@ -364,6 +417,7 @@ class Database(file: File = defaultFile()) {
             r.str("tour_time")!!, r.getInt("participants"), r.getInt("total_amount"), r.str("payment_method"),
             r.str("status")!!, r.str("attendance_status"), r.str("assigned_guide"), r.str("special_requests"),
             r.str("uploaded_id_doc"), r.str("uploaded_receipt_doc"), r.str("checked_in_at"),
+            r.str("activity_type") ?: "tour",
         )
     }
 
@@ -432,13 +486,29 @@ class Database(file: File = defaultFile()) {
 
     // ------------------------------------------------------------------ reviews
     fun saveReview(v: CustomerReview) = exec(
-        insertSql("reviews", listOf("id", "author", "role_tag", "rating", "review_date", "farm_or_crop", "comment")),
-        v.id, v.author, v.roleTag, v.rating, v.date, v.farmOrCrop, v.comment,
+        insertSql("reviews", listOf("id", "author", "role_tag", "rating", "review_date", "farm_or_crop", "comment",
+            "user_email", "booking_id", "target_type", "target_id")),
+        v.id, v.author, v.roleTag, v.rating, v.date, v.farmOrCrop, v.comment, v.userEmail, v.bookingId, v.targetType, v.targetId,
     )
+
+    fun nextReviewId(): Int = query("SELECT COALESCE(MAX(id),0)+1 FROM reviews") { it.getInt(1) }.first()
+
+    /** Adds a review and folds its rating into the reviewed tour/orchard's average. */
+    fun addReview(v: CustomerReview) = tx {
+        if (v.bookingId != null && query("SELECT 1 FROM reviews WHERE booking_id=?", v.bookingId) { 1 }.isNotEmpty())
+            error("This booking has already been reviewed.")
+        saveReview(v)
+        val table = when (v.targetType) { "tour" -> "tours"; "orchard" -> "fruit_picking"; else -> null }
+        if (table != null && v.targetId != null) exec(
+            "UPDATE $table SET rating=ROUND((rating*reviews_count + ?)*1.0/(reviews_count+1), 1), reviews_count=reviews_count+1 WHERE id=?",
+            v.rating, v.targetId,
+        )
+    }
 
     fun reviews(): List<CustomerReview> = query("SELECT * FROM reviews ORDER BY id") { r ->
         CustomerReview(r.getInt("id"), r.str("author")!!, r.str("role_tag")!!, r.getInt("rating"),
-            r.str("review_date")!!, r.str("farm_or_crop")!!, r.str("comment")!!)
+            r.str("review_date")!!, r.str("farm_or_crop")!!, r.str("comment")!!,
+            r.str("user_email"), r.longOrNull("booking_id"), r.str("target_type"), r.getInt("target_id").takeIf { !r.wasNull() })
     }
 
     // ------------------------------------------------------------------ cart / favorites

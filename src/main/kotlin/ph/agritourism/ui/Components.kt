@@ -375,3 +375,22 @@ fun PhotoCard(image: String, title: String, locationTag: String, rating: Double,
         }
     }
 }
+
+/** Tourist reviews with stars, author and comment. */
+@Composable
+fun ReviewList(reviews: List<ph.agritourism.model.CustomerReview>, empty: String = "No reviews yet.") {
+    if (reviews.isEmpty()) { Sub(empty); return }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        reviews.forEach { r ->
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF8FAFC)).padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    repeat(5) { i -> Icon(Icons.Filled.Star, null, Modifier.size(14.dp), tint = if (i < r.rating) Palette.Amber else Color(0xFFE2E8F0)) }
+                    Spacer(Modifier.width(8.dp)); Text(r.author, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(" · ${r.roleTag} · ${r.date}", fontSize = 11.sp, color = Palette.Muted)
+                }
+                Text(r.farmOrCrop, fontSize = 11.sp, color = Palette.Forest, fontWeight = FontWeight.SemiBold)
+                Text(r.comment, fontSize = 13.sp, color = Color(0xFF334155))
+            }
+        }
+    }
+}

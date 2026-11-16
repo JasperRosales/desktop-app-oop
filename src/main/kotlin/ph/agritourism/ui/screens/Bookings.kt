@@ -87,6 +87,8 @@ fun MyBookingsPage(s: AppState) {
                     if (b.attendanceStatus == "Arrived & Checked In") Pill("✓ Checked-in (${b.checkedInAt ?: "08:35 AM"})", Color(0xFFDCFCE7), Color(0xFF166534))
                     else PrimaryButton("Gate Check-In", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
                 }
+                if (s.canReview(b)) PrimaryButton("Write Review", icon = Icons.Outlined.RateReview, color = Color(0xFFB45309)) { s.reviewingBooking = b }
+                s.reviewForBooking(b.id)?.let { Pill("★ ${it.rating} Reviewed", Color(0xFFFEF3C7), Color(0xFF92400E)) }
                 if (s.ownsBooking(b)) PrimaryButton("Online Ticket", icon = Icons.Outlined.ConfirmationNumber) { s.selectedBookingForTicket = b }
                 SecondaryButton("Receipt", icon = Icons.Outlined.Print) { s.printTourReceipt(b) }
                 SecondaryButton(if (farmer) "View Dossier" else "View Voucher", icon = Icons.Outlined.Visibility) { s.selectedBookingForView = b }

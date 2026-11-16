@@ -77,6 +77,8 @@ fun FarmerProfilePage(s: AppState) {
             }
         }
     }
+    SectionHeader("Tourist Reviews", "What visitors say about their farm experiences") { Pill("${s.reviews.size} reviews") }
+    ReviewList(s.reviews.sortedByDescending { it.id }.take(6))
     SectionHeader("Harvest Catalog & Available Produce", "Fresh vegetables, fruits, and processed farm goods") {
         PrimaryButton("Add New Farm Product", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }

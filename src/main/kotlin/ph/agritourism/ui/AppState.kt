@@ -52,8 +52,7 @@ private val STAMP = DateTimeFormatter.ofPattern("MMM d, yyyy · hh:mm a", Locale
 fun nowStamp(): String = LocalDateTime.now().format(STAMP)
 
 /** Parses ISO (2026-11-20) or display (Nov 20, 2026) booking dates. */
-fun parseTourDate(d: String): LocalDate? = runCatching { LocalDate.parse(d.trim()) }.getOrNull()
-    ?: runCatching { LocalDate.parse(d.trim(), DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH)) }.getOrNull()
+fun parseTourDate(d: String): LocalDate? = parseDate(d)
 
 /** Parses an order date such as "Nov 19, 2026 · 10:15 AM". */
 fun parseOrderDate(d: String): LocalDate? = parseTourDate(d.substringBefore("·"))
@@ -79,8 +78,8 @@ fun money(v: Number): String {
 class AppState(val db: Database, private val scope: CoroutineScope) {
     // static catalog (from SQLite)
     val images: AppImages = Database.loadSeed().config
-    val tours: List<FarmTour> = db.tours()
-    val fruitPicking: List<FruitPickingItem> = db.fruitPicking()
+    var tours by mutableStateOf(db.tours())
+    var fruitPicking by mutableStateOf(db.fruitPicking())
     val farmers: List<FarmerProfile> = db.farmers()
     var reviews by mutableStateOf(db.reviews())
 
@@ -145,6 +144,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var selectedBookingForView by mutableStateOf<Booking?>(null)
     var selectedBookingForTicket by mutableStateOf<Booking?>(null)
     var editingBooking by mutableStateOf<Booking?>(null)
+    var reviewingBooking by mutableStateOf<Booking?>(null)
     var deletingBookingId by mutableStateOf<Long?>(null)
     var selectedOrderForView by mutableStateOf<FarmerOrder?>(null)
     var selectedOrderForTracking by mutableStateOf<FarmerOrder?>(null)
@@ -277,7 +277,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             farmerOrders.mapNotNull { o -> parseOrderDate(o.orderDate)?.let { it to o.totalAmount } } +
                 bookings.filter { it.status != "Cancelled" }.mapNotNull { b -> parseTourDate(b.tourDate)?.let { it to b.totalAmount.toDouble() } }
         )
-    val myReviews: List<CustomerReview> get() = reviews.filter { it.author.equals(displayName, true) }
+    val myReviews: List<CustomerReview> get() = reviews.filter { r -> r.userEmail?.equals(userEmail, true) ?: r.author.equals(displayName, true) }
     val favoriteNames: List<String>
         get() = favoriteIds.mapNotNull { id ->
             tours.firstOrNull { it.id.toLong() == id }?.name ?: fruitPicking.firstOrNull { it.id + 100L == id }?.title
@@ -346,7 +346,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     fun reloadFromDb() {
         products = db.products(); bookings = db.bookings(); farmerOrders = db.orders()
-        notifications = db.notifications(); reviews = db.reviews()
+        notifications = db.notifications(); reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking()
         currentUser = currentUser?.let { db.findUser(it.email) }
         if (currentUser == null && isLoggedIn) { signOut(); return }
         currentUser?.let { userRole = it.role }
@@ -374,7 +374,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         isNotificationsOpen = false
         selectedNotification = null
         isProfileModalOpen = false; isAddProductModalOpen = false; isAddBookingModalOpen = false
-        selectedBookingForView = null; selectedBookingForTicket = null; editingBooking = null; deletingBookingId = null
+        selectedBookingForView = null; selectedBookingForTicket = null; editingBooking = null; deletingBookingId = null; reviewingBooking = null
         selectedOrderForView = null; selectedOrderForTracking = null; selectedReceipt = null
         activePage = Page.HOME
         showToast("Signed out successfully. Welcome to AgriTourism Philippines!")
@@ -543,8 +543,20 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     // ---------------------------------------------------------------- bookings
+    /** Saves a booking unless it would double-book the customer; returns false (with a message) if rejected. */
+    private fun trySaveBooking(b: Booking): Boolean = try {
+        db.saveBooking(b); true
+    } catch (e: Database.DoubleBookingException) {
+        val x = e.existing
+        showToast("Double booking: ${b.customerName} already has #${x.bookingCode} (${x.activity}) on ${x.tourDate} at ${slotTime(x.tourTime)}.")
+        false
+    } catch (e: java.sql.SQLException) {
+        if (e.message?.contains("UNIQUE", true) == true) { showToast("Double booking: that time slot is already reserved for this customer."); false } else throw e
+    }
+
     private fun updateBooking(id: Long, f: (Booking) -> Booking) {
-        bookings = bookings.map { if (it.id == id) f(it).also(db::saveBooking) else it }
+        val updated = booking(id)?.let(f) ?: return
+        if (trySaveBooking(updated)) bookings = bookings.map { if (it.id == id) updated else it }
     }
 
     private fun updateNotifications(list: List<AppNotification>) {
@@ -596,7 +608,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         // Keep the total consistent with the per-person rate when the group size changes.
         val perPerson = original.totalAmount.toDouble() / max(1, original.participants)
         val e = e0.copy(totalAmount = (perPerson * e0.participants).roundToInt())
-        db.saveBooking(e)
+        if (!trySaveBooking(e)) return
         bookings = bookings.map { if (it.id == e.id) e else it }
         editingBooking = null
         showToast("Booking #${e.bookingCode} updated successfully!")
@@ -679,7 +691,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             attendanceStatus = "Pending Confirmation",
             assignedGuide = if (t.farmerName.isNotBlank()) "${t.farmerName} (Farm Host & Guide)" else "Ate Rosa (Master Guide)",
         )
-        db.saveBooking(nb)
+        if (!trySaveBooking(nb)) return
         bookings = listOf(nb) + bookings
         isTourModalOpen = false
         selectedBookingForTicket = nb
@@ -699,8 +711,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             activity = f.title, tourDate = fruitDate, tourTime = fruitTime.split(" - ").first().ifBlank { "09:30 AM" },
             participants = fruitGuests, totalAmount = f.pricePerPerson * fruitGuests, paymentMethod = fruitPaymentMethod,
             attendanceStatus = "Pending Confirmation", status = "Confirmed", assignedGuide = "Kuya Dennis (Senior Orchardist)",
+            activityType = "orchard",
         )
-        db.saveBooking(nb)
+        if (!trySaveBooking(nb)) return
         bookings = listOf(nb) + bookings
         isFruitModalOpen = false
         selectedBookingForTicket = nb
@@ -718,15 +731,50 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         val nb = Booking(
             id = newId(), bookingCode = newBookingCode(), farmId = t.id, farmName = t.name,
             customerName = newBookingCustomer, customerPhone = newBookingPhone.ifBlank { "+63 917 555 0192" },
-            customerEmail = "tourist@agritourism.ph", activity = t.name, tourDate = newBookingDate,
+            customerEmail = null, activity = t.name, tourDate = newBookingDate,
             tourTime = newBookingTime.ifBlank { "09:00 AM" }, participants = newBookingGuests, totalAmount = total,
             paymentMethod = newBookingPayment, attendanceStatus = "Pending Confirmation", status = "Confirmed",
         )
-        db.saveBooking(nb)
+        if (!trySaveBooking(nb)) return
         bookings = listOf(nb) + bookings
         isAddBookingModalOpen = false
         showToast("Tour booking created for $newBookingCustomer ($PESO$total)!")
         newBookingCustomer = ""
+    }
+
+    // ---------------------------------------------------------------- reviews
+    fun reviewForBooking(id: Long): CustomerReview? = reviews.firstOrNull { it.bookingId == id }
+
+    /** Tourists can review their own visit once it has happened (checked in, or the date has passed), once per booking. */
+    fun canReview(b: Booking): Boolean = ownsBooking(b) && b.status != "Cancelled" && reviewForBooking(b.id) == null &&
+        (b.attendanceStatus == "Arrived & Checked In" || parseTourDate(b.tourDate)?.let { !it.isAfter(LocalDate.now()) } == true)
+
+    fun reviewsFor(type: String, id: Int): List<CustomerReview> =
+        reviews.filter { it.targetType == type && it.targetId == id }.sortedByDescending { it.id }
+
+    /** Saves a tourist's review for one of their bookings; returns an error message or null on success. */
+    fun submitReview(bookingId: Long, rating: Int, comment: String): String? {
+        val b = booking(bookingId) ?: return "Booking not found."
+        if (!isTourist || !ownsBooking(b)) return "You can only review your own bookings."
+        if (reviewForBooking(bookingId) != null) return "You have already reviewed this booking."
+        if (!canReview(b)) return "You can review this booking after your visit."
+        if (rating !in 1..5) return "Please choose a rating from 1 to 5 stars."
+        if (comment.trim().length < 10) return "Please write at least 10 characters about your visit."
+        val review = CustomerReview(
+            db.nextReviewId(), displayName, "Eco-Tourist", rating,
+            LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)), b.activity, comment.trim(),
+            userEmail, b.id, b.activityType, b.farmId,
+        )
+        try { db.addReview(review) } catch (e: Exception) { return e.message ?: "Could not save the review." }
+        reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking()
+        selectedTour = tours.firstOrNull { it.id == selectedTour.id } ?: selectedTour
+        selectedFruit = fruitPicking.firstOrNull { it.id == selectedFruit.id } ?: selectedFruit
+        addNotification(AppNotification(System.currentTimeMillis(), "New $rating★ Review: ${b.activity}",
+            "${review.author} reviewed booking #${b.bookingCode}.", "\"${review.comment}\" — ${review.author}",
+            nowStamp(), false, "farmer_review", "farmer"))
+        reviewingBooking = null
+        showToast("Thank you! Your $rating-star review was posted.")
+        return null
     }
 
     // ---------------------------------------------------------------- products

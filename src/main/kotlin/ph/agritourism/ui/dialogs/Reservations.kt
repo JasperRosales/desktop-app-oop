@@ -65,6 +65,8 @@ internal fun TourModal(s: AppState) {
             }
             Row { Label("Tour Gallery Photo Highlights"); Spacer(Modifier.weight(1f)); Label("${t.thumbnails.size} Photos") }
             Gallery(t.thumbnails)
+            Label("Tourist Reviews (${s.reviewsFor("tour", t.id).size})")
+            ReviewList(s.reviewsFor("tour", t.id).take(5), "No reviews for this tour yet.")
             HorizontalDivider(color = Palette.Border)
             Text("📅 Customize Your Tour Booking", fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -101,6 +103,8 @@ internal fun FruitModal(s: AppState) {
                 Text("✓ Duration: ${f.duration}", fontSize = 13.sp)
                 Text("✓ Available seasonal fruits: ${f.seasonalFruits}", fontSize = 13.sp)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) { Label("Tourist Reviews (${s.reviewsFor("orchard", f.id).size}) "); RatingText(f.rating, f.reviewsCount) }
+            ReviewList(s.reviewsFor("orchard", f.id).take(5), "No reviews for this orchard yet.")
             HorizontalDivider(color = Palette.Border)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DateField("Select Date", s.fruitDate, { s.fruitDate = it }, Modifier.weight(1f))

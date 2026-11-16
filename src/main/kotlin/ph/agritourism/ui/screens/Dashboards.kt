@@ -257,7 +257,13 @@ fun TouristDashboard(s: AppState) {
         val favs = s.favoriteNames
         MiniStat(Icons.Outlined.CalendarMonth, "${s.activeBookings.size}", "Active Bookings", Modifier.weight(1f)) { s.navigate(Page.MY_BOOKINGS) }
         MiniStat(Icons.Outlined.Star, "$reviewCount", "Submitted Reviews", Modifier.weight(1f)) {
-            s.showToast(if (reviewCount == 0) "You haven't posted any reviews yet." else "You have $reviewCount posted review(s). Thank you for supporting local farmers!")
+            val pending = s.visibleBookings.count(s::canReview)
+            s.showToast(when {
+                pending > 0 -> "You have $pending visit(s) waiting for a review. Open My Bookings and tap Write Review."
+                reviewCount == 0 -> "You haven't posted any reviews yet. You can review a booking after your visit."
+                else -> "You have $reviewCount posted review(s). Thank you for supporting local farmers!"
+            })
+            if (pending > 0) s.navigate(Page.MY_BOOKINGS)
         }
         MiniStat(Icons.Outlined.FavoriteBorder, "${favs.size}", "Wishlisted Farms", Modifier.weight(1f)) {
             s.showToast(if (favs.isEmpty()) "No farms wishlisted yet. Tap the heart on a farm to save it." else "${favs.size} farm(s) wishlisted: ${favs.joinToString()}.")
