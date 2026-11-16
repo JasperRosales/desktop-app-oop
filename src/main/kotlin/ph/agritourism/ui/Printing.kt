@@ -62,11 +62,11 @@ ${card("Assigned Guide", b.assignedGuide ?: "Senior Agro-Guide (Batangas)")}${ca
 <div class="h"><div class="b">Official AgriTourism Tour Voucher</div><span class="badge">${esc(b.status)}</span></div>
 <div class="ct"><span class="ref">${esc(b.bookingCode)}</span><h1>${esc(b.farmName)}</h1><p class="sub">${esc(b.activity)}</p>
 <div class="g">${card("Tour Date", b.tourDate)}${card("Scheduled Time", b.tourTime)}${card("Tourist / Guest", b.customerName)}${card("Group Size", "${b.participants} Persons")}
-${card("Contact", "${b.customerPhone ?: "+63 917 555 0192"} · ${b.customerEmail ?: "tourist@agritourism.ph"}")}${card("Attendance", b.attendanceStatus ?: "Pending Confirmation")}
-${card("Assigned Guide", b.assignedGuide ?: "Kuya Noel (Master Horticulturist)")}${card("Total", "₱${money(b.totalAmount)}")}</div></div>""", true)
+${card("Contact", "${b.customerPhone ?: "—"} · ${b.customerEmail ?: "walk-in guest"}")}${card("Attendance", b.attendanceStatus ?: "Pending Confirmation")}
+${card("Assigned Guide", b.assignedGuide ?: "Not yet assigned")}${card("Total", "₱${money(b.totalAmount)}")}</div></div>""", true)
 
-    fun manifestHtml(bookings: List<Booking>) = page("Guest Manifest", """
-<div class="h"><div class="b">Sunnyvale Farm · Visitor Manifest</div></div><div class="ct">
+    fun manifestHtml(bookings: List<Booking>, farm: String) = page("Guest Manifest", """
+<div class="h"><div class="b">${esc(farm)} · Visitor Manifest</div></div><div class="ct">
 <table><tr><th>Code</th><th>Date</th><th>Time</th><th>Guest</th><th>Activity</th><th>Pax</th><th>Status</th></tr>
 ${bookings.joinToString("") { "<tr><td>${esc(it.bookingCode)}</td><td>${esc(it.tourDate)}</td><td>${esc(it.tourTime)}</td><td>${esc(it.customerName)}</td><td>${esc(it.activity)}</td><td>${it.participants}</td><td>${esc(it.status)}</td></tr>" }}</table></div>""", true)
 

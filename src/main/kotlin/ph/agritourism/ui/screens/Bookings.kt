@@ -34,7 +34,7 @@ fun MyBookingsPage(s: AppState) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (farmer) {
-                SecondaryButton("Print Guest Manifest", icon = Icons.Outlined.Download) { Printing.openHtml("guest-manifest.html", Printing.manifestHtml(s.visibleBookings)) }
+                SecondaryButton("Print Guest Manifest", icon = Icons.Outlined.Download) { Printing.openHtml("guest-manifest.html", Printing.manifestHtml(s.visibleBookings, s.myFarmLabel)) }
                 PrimaryButton("Add Walk-in Tour", icon = Icons.Filled.Add) { s.isAddBookingModalOpen = true }
             } else PrimaryButton("Book New Tour", icon = Icons.Filled.Add) { s.navigate(Page.FARM_DETAIL) }
         }
@@ -103,8 +103,8 @@ fun MyBookingsPage(s: AppState) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF8FAFC)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Label("Tourist Uploads:")
-                    Pill("🛡 ${b.uploadedIdDoc ?: "Valid ID Document Verified"}", Color.White)
-                    Pill("💳 ${b.uploadedReceiptDoc ?: "GCash E-Receipt Verified"}", Color.White)
+                    Pill("🛡 ${b.uploadedIdDoc ?: "No ID uploaded"}", Color.White)
+                    Pill("💳 ${b.uploadedReceiptDoc ?: "No payment proof uploaded"}", Color.White)
                     val req = b.specialRequests
                     if (req != null) Text("\"$req\"", Modifier.weight(1f), fontSize = 11.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     else Spacer(Modifier.weight(1f))
@@ -129,19 +129,20 @@ fun FarmerOrdersPage(s: AppState) {
         Column(Modifier.weight(1f)) {
             Pill("Fulfillment & Packing Desk"); Spacer(Modifier.height(6.dp))
             H1("Tourist Produce Orders")
-            Sub("Review orders placed by tourists for Sunnyvale Farm produce, inspect uploaded GCash receipts, and manage packing & dispatch.")
+            Sub("Review orders placed by tourists for ${s.myFarmLabel} produce, inspect payment proofs, and manage packing & dispatch.")
         }
         SecondaryButton("Print Packing Slips", icon = Icons.Outlined.Download) {
-            Printing.openHtml("packing-slips.html", Printing.orderHtml(s.visibleOrders, "Sunnyvale Farm · Packing Slips"))
+            Printing.openHtml("packing-slips.html", Printing.orderHtml(s.visibleOrders, "${s.myFarmLabel} · Packing Slips"))
         }
     }
     val tabs = listOf("All", "Pending Packing", "Dispatched", "Delivered")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        FilterChipRow(tabs, s.ordersFilter, { t -> "$t (${if (t == "All") s.farmerOrders.size else s.farmerOrders.count { it.fulfillmentStatus == t }})" }) { s.ordersFilter = it }
+        FilterChipRow(tabs, s.ordersFilter, { t -> "$t (${if (t == "All") s.visibleOrders.size else s.visibleOrders.count { it.fulfillmentStatus == t }})" }) { s.ordersFilter = it }
         Spacer(Modifier.weight(1f))
-        Pill("Total Orders Value: $PESO${money(s.farmerOrders.sumOf { it.totalAmount })}")
+        Pill("Total Orders Value: $PESO${money(s.visibleOrders.sumOf(s::farmShare))}")
     }
-    s.farmerOrders.filter { s.ordersFilter == "All" || it.fulfillmentStatus == s.ordersFilter }.forEach { o ->
+    if (s.visibleOrders.isEmpty()) Sub("No orders for your farm's produce yet.")
+    s.visibleOrders.filter { s.ordersFilter == "All" || it.fulfillmentStatus == s.ordersFilter }.forEach { o ->
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("#${o.orderNumber}", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
@@ -157,16 +158,21 @@ fun FarmerOrdersPage(s: AppState) {
                 }
                 Column(Modifier.weight(1f)) {
                     Label("Ordered Farm Produce")
-                    o.items.forEach { Row { Text("${it.productName} × ${it.qty}", Modifier.weight(1f), fontSize = 12.sp); Text("$PESO${money(it.qty * it.unitPrice)}", fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+                    val mine = s.farmProducts.map { it.id }.toSet()
+                    val (ownItems, otherItems) = if (s.isFarmer) o.items.partition { it.productId in mine } else o.items to emptyList()
+                    ownItems.forEach { Row { Text("${it.productName} × ${it.qty}", Modifier.weight(1f), fontSize = 12.sp); Text("$PESO${money(it.qty * it.unitPrice)}", fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+                    if (otherItems.isNotEmpty()) Sub("+ ${otherItems.size} item(s) supplied by other farms")
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
                     Row { Text("Total Amount:", Modifier.weight(1f), fontWeight = FontWeight.Bold); Text("$PESO${money(o.totalAmount)}", fontWeight = FontWeight.ExtraBold, color = Palette.Forest) }
                 }
                 Column(Modifier.weight(1f)) {
                     Label("Tourist Uploaded Receipt")
                     Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFF8FAFC)).clickable { s.selectedOrderForView = o }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(o.uploadedReceiptUrl, Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)), contentDescription = "Receipt preview")
-                        Spacer(Modifier.width(8.dp))
-                        Column { Text("GCash E-Receipt", fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("Click to inspect receipt →", fontSize = 11.sp, color = Palette.Forest) }
+                        if (o.uploadedReceiptUrl.isNotBlank()) { AsyncImage(o.uploadedReceiptUrl, Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)), contentDescription = "Receipt preview"); Spacer(Modifier.width(8.dp)) }
+                        Column {
+                            Text(if (o.uploadedReceiptUrl.isNotBlank()) "${o.paymentMethod} Receipt" else "No receipt uploaded (${o.paymentMethod})", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("Click to open order details →", fontSize = 11.sp, color = Palette.Forest)
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     Label("Update Fulfillment Status:")
@@ -202,11 +208,12 @@ fun FarmerProductsPage(s: AppState) {
         Column(Modifier.weight(1f)) {
             Pill("Farm Produce Inventory"); Spacer(Modifier.height(6.dp))
             H1("My Produce Catalog")
-            Sub("Manage vegetables, fruits, and honey produced at Sunnyvale Farm. Add new harvests with photos and pricing.")
+            Sub("Manage the produce listed by ${s.myFarmLabel}. Add new harvests with photos and pricing.")
         }
         PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
-    Grid(s.products.filter { it.farmOrigin.contains("Sunnyvale") }, 4) { p ->
+    if (s.farmProducts.isEmpty()) Sub("No products listed yet. Use List New Produce to add your first harvest.")
+    Grid(s.farmProducts, 4) { p ->
         GlassCard(padding = 0.dp) {
             Box(Modifier.fillMaxWidth().height(150.dp)) {
                 AsyncImage(p.imageUrl, Modifier.fillMaxSize())

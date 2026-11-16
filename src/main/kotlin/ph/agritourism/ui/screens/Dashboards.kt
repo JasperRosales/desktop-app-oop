@@ -149,7 +149,7 @@ fun AdminDashboard(s: AppState) {
 @Composable
 fun FarmerDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { H1("Welcome, ${s.displayName}"); Sub("Sunnyvale Farm · Accredited AgriTourism Host (Bauan, Batangas)") }
+        Column(Modifier.weight(1f)) { H1("Welcome, ${s.displayName}"); Sub(s.myFarm?.let { "${it.farmName} · ${it.location}" } ?: "No farm linked to this account") }
         PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -165,19 +165,20 @@ fun FarmerDashboard(s: AppState) {
         }
     }
     GlassCard {
-        SectionHeader("Recent Tour Bookings", "Accept or manage visitor requests for Sunnyvale Farm") {
-            Pill("${s.bookings.count { it.status == "Pending" }} Pending Requests", Color(0xFFFEF3C7), Color(0xFF92400E))
+        SectionHeader("Recent Tour Bookings", "Accept or manage visitor requests for ${s.myFarmLabel}") {
+            Pill("${s.visibleBookings.count { it.status == "Pending" }} Pending Requests", Color(0xFFFEF3C7), Color(0xFF92400E))
         }
         Spacer(Modifier.height(12.dp))
         val headers = listOf("Date" to 1.1f, "Time" to 1.3f, "Tourist Guest" to 1.3f, "Activity" to 1.5f, "Guests" to 0.8f, "1-Day Confirmation" to 1f, "Amount" to 0.7f, "Status" to 0.9f, "Action" to 1.3f)
         Row(Modifier.fillMaxWidth().background(Palette.Mint, RoundedCornerShape(10.dp)).padding(10.dp)) {
             headers.forEach { (h, w) -> Text(h, Modifier.weight(w), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep) }
         }
-        s.bookings.forEach { b ->
+        if (s.visibleBookings.isEmpty()) Sub("No bookings for your farm yet.")
+        s.visibleBookings.forEach { b ->
             Row(Modifier.fillMaxWidth().clickable { s.selectedBookingForView = b }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(b.tourDate, Modifier.weight(1.1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(b.tourTime, Modifier.weight(1.3f), fontSize = 12.sp, maxLines = 2)
-                Column(Modifier.weight(1.3f)) { Text(b.customerName, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(b.customerPhone ?: "+63 917 555 0192", fontSize = 10.sp, color = Palette.Muted) }
+                Column(Modifier.weight(1.3f)) { Text(b.customerName, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(b.customerPhone ?: "—", fontSize = 10.sp, color = Palette.Muted) }
                 Text(b.activity, Modifier.weight(1.5f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${b.participants} ${if (b.participants == 1) "person" else "persons"}", Modifier.weight(0.8f), fontSize = 12.sp)
                 Box(Modifier.weight(1f)) {
@@ -239,7 +240,7 @@ fun TouristDashboard(s: AppState) {
                 fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
             Spacer(Modifier.height(4.dp))
             Text(when {
-                confirmed -> "Your tour reservation at ${t.farmName} is confirmed. Farm host Mang Juan and your guide are preparing for your arrival at ${t.tourTime}."
+                confirmed -> "Your tour reservation at ${t.farmName} is confirmed. The farm host and your guide are preparing for your arrival at ${t.tourTime}."
                 cancelled -> "You have cancelled your tour reservation at ${t.farmName}. The farm host has been notified."
                 else -> "Your tour to ${t.farmName} is scheduled for tomorrow, ${t.tourDate} at ${t.tourTime} (${t.participants} guests). Please confirm if you will proceed so the farm can prepare fresh refreshments and assign your guide."
             }, fontSize = 13.sp, color = Color(0xFF334155))

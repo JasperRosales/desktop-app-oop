@@ -56,7 +56,9 @@ private fun Brand() = Row(verticalAlignment = Alignment.CenterVertically) {
 @Composable
 fun SignupPage(s: AppState) {
     var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("maria.santos@gmail.com") }
+    var email by remember { mutableStateOf("") }
+    var farmName by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
     var pw2 by remember { mutableStateOf("") }
@@ -77,6 +79,13 @@ fun SignupPage(s: AppState) {
         Dropdown("Select Role", listOf(Role.USER, Role.FARMER), role, {
             when (it) { Role.USER -> "Tourist (Book Tours & Buy Fruits)"; Role.FARMER -> "Farmer (Manage Farm & List Produce)"; Role.ADMIN -> "Administrator (Platform Overview)" }
         }) { role = it }
+        if (role == Role.FARMER) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Field("", farmName, { farmName = it }, Modifier.weight(1f), "Farm Name")
+                Field("", province, { province = it }, Modifier.weight(1f), "Province")
+            }
+        }
         error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = Palette.Red, fontSize = 12.sp) }
         Spacer(Modifier.height(16.dp))
         PrimaryButton("Sign Up", Modifier.fillMaxWidth()) {
@@ -88,7 +97,7 @@ fun SignupPage(s: AppState) {
                 pw != pw2 -> "Passwords do not match."
                 else -> null
             }
-            if (error == null) error = s.signup(name, email, phone, pw, role)
+            if (error == null) error = s.signup(name, email, phone, pw, role, farmName, province)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

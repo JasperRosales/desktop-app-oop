@@ -193,7 +193,15 @@ private fun AddProductModal(s: AppState) {
 @Composable
 private fun AddBookingModal(s: AppState) {
     val close = { s.isAddBookingModalOpen = false }
-    val tour = s.tours.firstOrNull { it.name == s.newBookingActivity } ?: s.tours.first()
+    val close0 = { s.isAddBookingModalOpen = false }
+    if (s.myTours.isEmpty()) {
+        Modal(close0, 480.dp) {
+            ModalHeader("Create Tour Booking", onClose = close0)
+            Column(Modifier.padding(22.dp)) { Sub("Your farm has no tours yet, so walk-in tour bookings aren't available."); Spacer(Modifier.height(12.dp)); SecondaryButton("Close") { close0() } }
+        }
+        return
+    }
+    val tour = s.myTours.firstOrNull { it.name == s.newBookingActivity } ?: s.myTours.first()
     Modal(close, 600.dp) {
         ModalHeader("Create Tour Booking", "Farmer manual booking for walk-in tourists or phone reservations", Icons.Outlined.EventAvailable, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -201,7 +209,7 @@ private fun AddBookingModal(s: AppState) {
                 Field("Guest / Customer Full Name", s.newBookingCustomer, { s.newBookingCustomer = it }, Modifier.weight(1f), "e.g. Anna Addyson")
                 Field("Mobile Phone", s.newBookingPhone, { s.newBookingPhone = it }, Modifier.weight(1f), "+63 918 333 4455")
             }
-            Dropdown("Select Tour", s.tours.map { it.name }, s.newBookingActivity, { n -> "$n (₱${s.tours.first { it.name == n }.pricePerPerson}/pax)" }) { s.newBookingActivity = it }
+            Dropdown("Select Tour", s.myTours.map { it.name }, tour.name, { n -> "$n (₱${s.myTours.first { it.name == n }.pricePerPerson}/pax)" }) { s.newBookingActivity = it }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DateField("Tour Schedule Date", s.newBookingDate, { s.newBookingDate = it }, Modifier.weight(1f))
                 Dropdown("Time Slot", TOUR_TIME_SLOTS, s.newBookingTime, { it }, Modifier.weight(1f)) { s.newBookingTime = it }

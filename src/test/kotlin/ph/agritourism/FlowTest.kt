@@ -115,7 +115,9 @@ class FlowTest {
         s.attendanceConfirmation(id, true)
         assertEquals("Confirmed Attending", s.bookings.first { it.id == id }.attendanceStatus)
         assertTrue(s.notifications.first().title.startsWith("Visitor Confirmed Arrival"))
-        s.loginAs(Role.FARMER)
+        s.loginAs(Role.FARMER) // booking 101 is at a farm Juan doesn't run
+        s.checkInBooking(id); assertNotEquals("Arrived & Checked In", s.bookings.first { it.id == id }.attendanceStatus)
+        s.loginAs(Role.ADMIN)
         s.checkInBooking(id); assertEquals("Arrived & Checked In", s.bookings.first { it.id == id }.attendanceStatus)
         s.assignGuide(id, "Mang Ben (Orchard Elder)")
         s.editingBooking = s.bookings.first { it.id == id }.copy(participants = 4, tourDate = "2026-12-01"); s.saveEditedBooking()
@@ -208,6 +210,7 @@ class FlowTest {
     }
 
     @Test fun chartsUseDatabaseValues() {
+        s.loginAs(Role.ADMIN)
         val bookingsTotal = s.monthlyBookings.sumOf { it.value }
         assertEquals(s.bookings.size.toDouble(), bookingsTotal) // all seeded dates fall in the 6-month window
         val revenue = s.monthlyRevenue.sumOf { it.value }
@@ -252,7 +255,7 @@ class FlowTest {
 
         // Admin: everything, including SQL (which refreshes app state).
         s.loginAs(Role.ADMIN)
-        Page.entries.forEach { assertTrue(s.canAccess(it) || it in setOf(Page.CART_CHECKOUT), "$it") }
+        Page.entries.forEach { assertTrue(s.canAccess(it) || it in setOf(Page.CART_CHECKOUT, Page.FARMER_PROFILE), "$it") }
         s.runAdminSql("UPDATE products SET stock=0 WHERE id=101")
         assertEquals(0, s.products.first { it.id == 101L }.stock)
 
@@ -290,8 +293,8 @@ class FlowTest {
         val b = s.bookings.first { it.id == 101L }
         assertFalse(s.canReview(b)) // visit hasn't happened yet
         assertNotNull(s.submitReview(b.id, 5, "Wonderful farm visit!"))
-        s.loginAs(Role.FARMER); s.checkInBooking(b.id)
-        assertNotNull(s.submitReview(b.id, 5, "Farmers cannot review")) // not a tourist
+        s.loginAs(Role.ADMIN); s.checkInBooking(b.id)
+        assertNotNull(s.submitReview(b.id, 5, "Admins cannot review")) // not a tourist
         s.loginAs(Role.USER)
         assertTrue(s.canReview(s.bookings.first { it.id == b.id }))
         assertNotNull(s.submitReview(b.id, 0, "Bad rating value here")); assertNotNull(s.submitReview(b.id, 4, "short"))
@@ -308,5 +311,36 @@ class FlowTest {
         assertEquals(before + 1, after)
         assertFalse(s2.canReview(s2.bookings.first { it.id == b.id }))
         assertFails { db.runSql("INSERT INTO reviews (id, author, booking_id) VALUES (9999, 'x', ${b.id})") } // DB enforces one per booking
+    }
+
+    @Test fun farmersOnlyManageTheirOwnFarm() {
+        s.loginAs(Role.FARMER)
+        val juanFarm = s.myFarmId!!
+        assertEquals(setOf(102L, 104L), s.visibleBookings.map { it.id }.toSet()) // orchard 1 + tour 1
+        assertTrue(s.farmProducts.isNotEmpty() && s.farmProducts.all { it.farmerId == juanFarm })
+        assertTrue(s.visibleOrders.isNotEmpty() && s.visibleOrders.all { juanFarm in s.farmsOf(it) })
+        assertTrue(s.myTours.all { it.farmerId == juanFarm } && s.myTours.isNotEmpty())
+        s.checkInBooking(103L); assertNotEquals("Arrived & Checked In", s.bookings.first { it.id == 103L }.attendanceStatus)
+        val foreignOrder = s.farmerOrders.first { juanFarm !in s.farmsOf(it) }
+        s.orderStatusUpdate(foreignOrder.id, "Pending Packing"); assertEquals(foreignOrder.fulfillmentStatus, s.farmerOrders.first { it.id == foreignOrder.id }.fulfillmentStatus)
+        s.newProductName = "Juan Kamote"; s.saveProduct()
+        assertEquals(juanFarm, s.products.first { it.name == "Juan Kamote" }.farmerId)
+
+        // A newly registered farmer gets their own empty farm.
+        s.signOut()
+        assertNotNull(s.signup("Ka Pedro", "pedro@farm.ph", "0917 111 2222", "secret1", Role.FARMER)) // farm details required
+        assertNull(s.signup("Ka Pedro", "pedro@farm.ph", "0917 111 2222", "secret1", Role.FARMER, "Pedro Rice Farm", "Nueva Ecija"))
+        assertEquals("Pedro Rice Farm", s.myFarm?.farmName)
+        assertTrue(s.visibleBookings.isEmpty() && s.visibleOrders.isEmpty() && s.farmProducts.isEmpty() && s.myTours.isEmpty())
+        s.newProductName = "Pedro Rice"; s.saveProduct()
+        assertEquals(listOf("Pedro Rice"), s.farmProducts.map { it.name })
+        s.loginAs(Role.FARMER); assertTrue(s.farmProducts.none { it.name == "Pedro Rice" })
+
+        // A tourist buying Pedro's rice notifies Pedro, not Juan.
+        s.loginAs(Role.USER)
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        s.addToCart(s.products.first { it.name == "Pedro Rice" }); s.deliveryAddress = "Manila"; s.placeOrder()
+        assertEquals("pedro@farm.ph", s.notifications.first().recipientEmail)
+        s.loginAs(Role.FARMER); assertTrue(s.roleFilteredNotifications.none { it.recipientEmail == "pedro@farm.ph" })
     }
 }

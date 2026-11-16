@@ -21,21 +21,29 @@ import ph.agritourism.ui.*
 
 @Composable
 fun FarmerProfilePage(s: AppState) {
+    val f = s.myFarm
+    if (f == null) {
+        GlassCard(Modifier.fillMaxWidth(), padding = 32.dp) {
+            H2("No farm linked to this account"); Sub("Ask an administrator to link your account to a farm profile.")
+        }
+        return
+    }
+    val tourReviews = s.reviews.filter { r -> r.targetId != null && ((r.targetType == "tour" && s.myTours.any { it.id == r.targetId }) ||
+        (r.targetType == "orchard" && s.myOrchards.any { it.id == r.targetId })) }.sortedByDescending { it.id }
     Box(Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(24.dp))) {
-        AsyncImage(s.images.farmerProfileBanner, Modifier.fillMaxSize(), contentDescription = "Sunnyvale Farm Landscape")
+        AsyncImage(f.farmBannerUrl.ifBlank { s.images.farmerProfileBanner }, Modifier.fillMaxSize(), contentDescription = f.farmName)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE60B2512)))))
-        Pill("🛡 DA-ATI Accredited Farm #PH-2024-91", Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopEnd).padding(16.dp))
+        if (f.certifications.isNotEmpty()) Pill("🛡 ${f.certifications.first()}", Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopEnd).padding(16.dp))
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.Bottom) {
-            Avatar(s.images.juanAvatar, 96.dp)
+            Avatar(f.photoUrl.ifBlank { s.avatar }, 96.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Juan Dela Cruz", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White); Spacer(Modifier.width(10.dp))
-                    Pill("Master Farmer", Color(0xFFFEF3C7), Color(0xFF92400E))
+                    Text(s.displayName, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White); Spacer(Modifier.width(10.dp))
+                    Pill(f.roleTitle, Color(0xFFFEF3C7), Color(0xFF92400E))
                 }
-                Text("📍 Sunnyvale Heritage Farm · Bauan, Batangas", color = Color(0xFFBBF7D0), fontSize = 13.sp)
-                Text("3rd generation family agro-farm specializing in organic heirloom vegetables, carabao mango orchards, and immersive eco-tours.",
-                    color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                Text("📍 ${f.farmName} · ${f.location}", color = Color(0xFFBBF7D0), fontSize = 13.sp)
+                if (f.storyQuote.isNotBlank()) Text(f.storyQuote, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Add Farm Product with Photo", icon = Icons.Filled.Add, color = Color(0xFF22C55E)) { s.isAddProductModalOpen = true }
@@ -45,10 +53,10 @@ fun FarmerProfilePage(s: AppState) {
     }
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         listOf(
-            listOf("Tourist Rating", if (s.reviews.isEmpty()) "No ratings" else "%.1f / 5.0".format(s.reviews.map { it.rating }.average()), "${s.reviews.size} verified reviews"),
-            listOf("Listed Products", "${s.farmProducts.size} Items", "Fresh organic produce"),
-            listOf("Active Tours", "${s.tours.size + s.fruitPicking.size} Tours", "Agro-trail & Fruit Picking"),
-            listOf("Tour Bookings", "${s.bookings.size} Bookings", "$PESO${money(s.bookings.filter { it.status != "Cancelled" }.sumOf { it.totalAmount })} revenue"),
+            listOf("Tourist Rating", if (tourReviews.isEmpty()) "No ratings" else "%.1f / 5.0".format(tourReviews.map { it.rating }.average()), "${tourReviews.size} verified reviews"),
+            listOf("Listed Products", "${s.farmProducts.size} Items", "${s.farmProducts.count { it.stock > 0 }} in stock"),
+            listOf("Active Tours", "${s.myTours.size + s.myOrchards.size} Tours", "Agro-trail & Fruit Picking"),
+            listOf("Tour Bookings", "${s.visibleBookings.size} Bookings", "$PESO${money(s.activeBookings.sumOf { it.totalAmount })} revenue"),
         ).zip(listOf(Icons.Outlined.Star, Icons.Outlined.Spa, Icons.Outlined.Explore, Icons.Outlined.EmojiEvents)).forEach { (st, ic) ->
             GlassCard(Modifier.weight(1f)) {
                 Icon(ic, null, tint = Palette.Forest); Spacer(Modifier.height(6.dp))
@@ -56,10 +64,11 @@ fun FarmerProfilePage(s: AppState) {
             }
         }
     }
-    SectionHeader("Farmer's Tour & Fruit Picking Experiences", "Direct booking schedules operated at Sunnyvale Farm") {
+    SectionHeader("Farmer's Tour & Fruit Picking Experiences", "Booking schedules operated at ${f.farmName}") {
         PrimaryButton("Create Tour Booking", icon = Icons.Filled.Add) { s.isAddBookingModalOpen = true }
     }
-    Grid(s.tours.take(3), 3) { t ->
+    if (s.myTours.isEmpty() && s.myOrchards.isEmpty()) Sub("No tours or orchards listed for your farm yet.")
+    Grid(s.myTours, 3) { t ->
         GlassCard(padding = 0.dp) {
             Box(Modifier.fillMaxWidth().height(170.dp)) {
                 AsyncImage(t.imageUrl, Modifier.fillMaxSize())
@@ -67,22 +76,29 @@ fun FarmerProfilePage(s: AppState) {
                 Pill(t.highlightTag, Color(0xFFFEF3C7), Color(0xFF92400E), Modifier.align(Alignment.TopEnd).padding(10.dp))
             }
             Column(Modifier.padding(14.dp)) {
-                Row { Text(t.name, Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("★ ${t.rating}", fontSize = 12.sp, color = Palette.Amber) }
+                Row { Text(t.name, Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("★ ${t.rating} (${t.reviewsCount})", fontSize = 12.sp, color = Palette.Amber) }
                 Sub(t.description, maxLines = 3)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("$PESO${t.pricePerPerson}", fontWeight = FontWeight.ExtraBold, color = Palette.Forest); Text(" /guest", fontSize = 11.sp, color = Palette.Muted)
-                    Spacer(Modifier.weight(1f)); PrimaryButton("Book & Schedule") { s.selectedTour = t; s.isTourModalOpen = true }
+                    Spacer(Modifier.weight(1f)); SecondaryButton("Walk-in Booking") { s.newBookingActivity = t.name; s.isAddBookingModalOpen = true }
                 }
             }
         }
     }
-    SectionHeader("Tourist Reviews", "What visitors say about their farm experiences") { Pill("${s.reviews.size} reviews") }
-    ReviewList(s.reviews.sortedByDescending { it.id }.take(6))
+    if (s.myOrchards.isNotEmpty()) Grid(s.myOrchards, 3) { o ->
+        GlassCard {
+            Text(o.title, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Sub("${o.fruitName} · ${o.seasonAvailability}"); Text("★ ${o.rating} (${o.reviewsCount}) · $PESO${o.pricePerPerson}/picker", fontSize = 12.sp, color = Palette.Forest)
+        }
+    }
+    SectionHeader("Tourist Reviews", "What visitors say about your tours and orchards") { Pill("${tourReviews.size} reviews") }
+    ReviewList(tourReviews.take(6), "No reviews for your farm yet.")
     SectionHeader("Harvest Catalog & Available Produce", "Fresh vegetables, fruits, and processed farm goods") {
         PrimaryButton("Add New Farm Product", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
-    Grid(s.products.take(8), 4) { p ->
+    if (s.farmProducts.isEmpty()) Sub("No products listed yet.")
+    Grid(s.farmProducts.take(8), 4) { p ->
         GlassCard(padding = 0.dp) {
             Box(Modifier.fillMaxWidth().height(130.dp)) {
                 AsyncImage(p.imageUrl, Modifier.fillMaxSize())
@@ -93,21 +109,20 @@ fun FarmerProfilePage(s: AppState) {
                 Text(p.farmOrigin, fontSize = 11.sp, color = Palette.Forest, maxLines = 1)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("$PESO${money(p.price)} ", fontWeight = FontWeight.ExtraBold); Text(p.unit, fontSize = 11.sp, color = Palette.Muted)
-                    Spacer(Modifier.weight(1f)); TextButton({ s.addToCart(p) }) { Text("+ Add to Basket", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    Spacer(Modifier.weight(1f)); Text(if (p.stock > 0) "${p.stock} in stock" else "Sold out", fontSize = 11.sp, color = if (p.stock > 0) Palette.Forest else Palette.Red)
                 }
             }
         }
     }
     GlassCard {
-        H2("About Sunnyvale Heritage Farm")
+        H2("About ${f.farmName}")
         Spacer(Modifier.height(6.dp))
-        Text("Located at the foot of Mount Maculot in Bauan, Batangas, Sunnyvale Farm was established in 1984 as a small coffee and fruit orchard. Today, under Mang Juan Dela Cruz, the farm employs 24 local agrarian families, utilizing vermicompost soil enrichment, rainwater harvesting, and native stingless bee pollination to grow chemical-free produce.",
-            fontSize = 13.sp, color = Color(0xFF334155))
+        Text(f.fullBiography.ifBlank { "Tell tourists about your farm — its history, what you grow and how you farm." }, fontSize = 13.sp, color = Color(0xFF334155))
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoTile("Certification", "DA-ATI Certified Good Agricultural Practices (GAP)", Icons.Outlined.VerifiedUser, Modifier.weight(1f))
-            InfoTile("Direct Farm Tours", "Tuesdays to Sundays · 7:00 AM - 5:00 PM", Icons.Outlined.Schedule, Modifier.weight(1f))
-            InfoTile("Contact & Inquiries", "+63 917 555 0192 · juan.delacruz@sunnyvalefarm.ph", Icons.Outlined.Call, Modifier.weight(1f))
+            InfoTile("Certification", f.certifications.joinToString().ifBlank { "None listed" }, Icons.Outlined.VerifiedUser, Modifier.weight(1f))
+            InfoTile("Farm Size", "${f.hectares} · ${f.generation}", Icons.Outlined.Agriculture, Modifier.weight(1f))
+            InfoTile("Contact & Inquiries", listOf(s.userPhone, s.userEmail).filter { it.isNotBlank() }.joinToString(" · "), Icons.Outlined.Call, Modifier.weight(1f))
         }
     }
 }

@@ -150,7 +150,18 @@ class Database(file: File = defaultFile()) {
     /** Upgrades databases created by older versions (shared cart/favorites, orders without an owner). */
     private fun migrate() {
         if ("customer_email" !in columns("orders")) exec("ALTER TABLE orders ADD COLUMN customer_email TEXT")
-        if ("recipient_email" !in columns("notifications")) exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
+        if ("recipient_email" !in columns("notifications")) {
+            exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
+            // Farmer alerts go to the farm they concern; the old generic ones were about the demo farmer's farm.
+            exec("UPDATE notifications SET recipient_email=? WHERE target_role='farmer'", Role.FARMER.email)
+        }
+        listOf("users", "tours", "fruit_picking", "products").forEach { t ->
+            if ("farmer_id" !in columns(t)) exec("ALTER TABLE $t ADD COLUMN farmer_id INTEGER")
+        }
+        if ("product_id" !in columns("order_items")) exec("ALTER TABLE order_items ADD COLUMN product_id INTEGER")
+        exec("UPDATE users SET farmer_id=1 WHERE farmer_id IS NULL AND lower(email)=lower(?)", Role.FARMER.email)
+        assignFarmOwnership()
+        linkOrderItems()
         val bookingCols = columns("bookings")
         if ("activity_type" !in bookingCols) {
             exec("ALTER TABLE bookings ADD COLUMN activity_type TEXT NOT NULL DEFAULT 'tour'")
@@ -202,6 +213,8 @@ class Database(file: File = defaultFile()) {
             s.orders.forEachIndexed { i, o -> saveOrder(o, i) }
             s.notifications.forEachIndexed { i, n -> saveNotification(n, i) }
             s.reviews.forEach(::saveReview)
+            assignFarmOwnership()
+            linkOrderItems()
             classifyBookings()
             linkSeedReviews()
             listOf(
@@ -215,6 +228,8 @@ class Database(file: File = defaultFile()) {
             listOf(1L, 2L, 3L).forEach { setFavorite(maria, it, true) }
             exec("UPDATE orders SET customer_email=? WHERE customer_name='Maria Santos'", maria)
             exec("UPDATE notifications SET recipient_email=? WHERE target_role='tourist'", maria)
+            exec("UPDATE notifications SET recipient_email=? WHERE target_role='farmer'", Role.FARMER.email)
+            exec("UPDATE users SET farmer_id=1 WHERE email=?", Role.FARMER.email)
         }
     }
 
@@ -266,7 +281,22 @@ class Database(file: File = defaultFile()) {
         conn.createStatement().use { it.executeQuery("SELECT COALESCE(MIN(sort_order),0) FROM $table").use { r -> r.next(); r.getInt(1) } }
 
     // ------------------------------------------------------------------ users
-    private fun mapUser(r: ResultSet) = User(r.getLong("id"), r.str("full_name")!!, r.str("email")!!, r.str("phone") ?: "", Role.of(r.str("role")!!))
+    private fun mapUser(r: ResultSet) = User(r.getLong("id"), r.str("full_name")!!, r.str("email")!!, r.str("phone") ?: "",
+        Role.of(r.str("role")!!), r.getInt("farmer_id").takeIf { !r.wasNull() })
+
+    /** The account that manages a farm, if any. */
+    fun farmerAccount(farmerId: Int): User? =
+        query("SELECT * FROM users WHERE farmer_id=? AND role='farmer' LIMIT 1", farmerId, map = ::mapUser).firstOrNull()
+
+    /** Creates a farm profile for a newly registered farmer and links the account to it. */
+    fun createFarm(userId: Long, ownerName: String, farmName: String, province: String, fallbackImage: String): Int = tx {
+        val id = query("SELECT COALESCE(MAX(id),0)+1 FROM farmers") { it.getInt(1) }.first()
+        saveFarmer(FarmerProfile(id, ownerName.trim(), "Farm Owner", farmName.trim(), province.trim(), province.trim(), 0,
+            fallbackImage, fallbackImage, "", "", "", emptyList(), emptyList(), emptyList(), emptyList(), 0, 0.0, 0,
+            "1st generation", "—", emptyList()))
+        exec("UPDATE users SET farmer_id=? WHERE id=?", id, userId)
+        id
+    }
 
     fun findUser(email: String): User? =
         query("SELECT * FROM users WHERE lower(email)=lower(?)", email.trim(), map = ::mapUser).firstOrNull()
@@ -302,6 +332,31 @@ class Database(file: File = defaultFile()) {
         f.generation, f.hectares, f.gallery.enc(),
     )
 
+    /** Short farm label such as "Sunnyvale Farm" (first two words of the farm name). */
+    private fun farmKey(farmName: String) = farmName.split(" ").take(2).joinToString(" ")
+
+    /**
+     * Links catalog rows to their farm: a farmer's tour (farmers.tour_id), orchards and products whose
+     * farm name/origin starts with the farm's name. Unmatched rows stay platform-managed (admin only).
+     */
+    private fun assignFarmOwnership() = farmers().forEach { f ->
+        val key = farmKey(f.farmName) + "%"
+        if (f.tourId > 0) exec("UPDATE tours SET farmer_id=? WHERE id=? AND farmer_id IS NULL", f.id, f.tourId)
+        exec("UPDATE fruit_picking SET farmer_id=? WHERE farmer_id IS NULL AND farm_name LIKE ?", f.id, key)
+        exec("UPDATE products SET farmer_id=? WHERE farmer_id IS NULL AND farm_origin LIKE ?", f.id, key)
+    }
+
+    /** Older orders stored only product names; match each to the catalog product sharing the most words. */
+    private fun linkOrderItems() {
+        val words = { t: String -> t.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length > 2 }.toSet() }
+        val catalog = products().map { it.id to words(it.name) }
+        query("SELECT id, product_name FROM order_items WHERE product_id IS NULL") { it.getLong(1) to it.getString(2) }.forEach { (rowId, name) ->
+            val w = words(name)
+            val best = catalog.map { (pid, pw) -> pid to (w intersect pw).size }.filter { it.second >= 2 }.maxByOrNull { it.second }
+            if (best != null) exec("UPDATE order_items SET product_id=? WHERE id=?", best.first, rowId)
+        }
+    }
+
     fun farmers(): List<FarmerProfile> = query("SELECT * FROM farmers ORDER BY id") { r ->
         FarmerProfile(
             r.getInt("id"), r.str("name")!!, r.str("role_title")!!, r.str("farm_name")!!, r.str("location")!!,
@@ -326,7 +381,7 @@ class Database(file: File = defaultFile()) {
             r.getInt("id"), r.str("name")!!, r.str("location")!!, r.getDouble("rating"), r.getInt("reviews_count"),
             r.getInt("price_per_person"), r.str("operating_hours")!!, r.str("amenities")!!.decList(),
             r.str("activities")!!.decList(), r.str("image_url")!!, r.str("description")!!, r.str("highlight_tag")!!,
-            r.str("farmer_name")!!, r.str("thumbnails")!!.decList(),
+            r.str("farmer_name")!!, r.str("thumbnails")!!.decList(), r.getInt("farmer_id").takeIf { !r.wasNull() },
         )
     }
 
@@ -342,16 +397,16 @@ class Database(file: File = defaultFile()) {
             r.getInt("id"), r.str("title")!!, r.str("farm_name")!!, r.str("location")!!, r.str("fruit_name")!!,
             r.getInt("price_per_person"), r.getDouble("rating"), r.getInt("reviews_count"), r.str("duration")!!,
             r.str("seasonal_fruits")!!, r.str("image_url")!!, r.str("description")!!, r.str("season_availability")!!,
-            r.str("thumbnails")!!.decList(),
+            r.str("thumbnails")!!.decList(), r.getInt("farmer_id").takeIf { !r.wasNull() },
         )
     }
 
     // ------------------------------------------------------------------ products
     fun saveProduct(p: Product, sortOrder: Int) = exec(
         insertSql("products", listOf("id", "name", "category", "price", "unit", "discount_percent", "stock", "rating",
-            "reviews_count", "image_url", "description", "farm_origin", "sort_order")),
+            "reviews_count", "image_url", "description", "farm_origin", "sort_order", "farmer_id")),
         p.id, p.name, p.category, p.price, p.unit, p.discountPercent, p.stock, p.rating, p.reviewsCount, p.imageUrl,
-        p.description, p.farmOrigin, sortOrder,
+        p.description, p.farmOrigin, sortOrder, p.farmerId,
     )
 
     fun updateStock(productId: Long, stock: Int) = exec("UPDATE products SET stock=? WHERE id=?", stock, productId)
@@ -360,7 +415,7 @@ class Database(file: File = defaultFile()) {
         Product(
             r.getLong("id"), r.str("name")!!, r.str("category")!!, r.getDouble("price"), r.str("unit")!!,
             r.getInt("discount_percent"), r.getInt("stock"), r.getDouble("rating"), r.getInt("reviews_count"),
-            r.str("image_url")!!, r.str("description")!!, r.str("farm_origin")!!,
+            r.str("image_url")!!, r.str("description")!!, r.str("farm_origin")!!, r.getInt("farmer_id").takeIf { !r.wasNull() },
         )
     }
 
@@ -393,10 +448,11 @@ class Database(file: File = defaultFile()) {
         )
     }
 
-    /** Older rows have no activity type: fruit-picking bookings point at fruit_picking ids. */
+    /** Older rows have no activity type: fruit-picking/harvest bookings point at fruit_picking ids. */
     private fun classifyBookings() = exec(
         """UPDATE bookings SET activity_type='orchard'
-           WHERE activity LIKE '%Picking%' OR farm_name IN (SELECT farm_name FROM fruit_picking WHERE fruit_picking.id=bookings.farm_id)""",
+           WHERE activity LIKE '%Picking%' OR activity LIKE '%Harvest%'
+              OR activity IN (SELECT title FROM fruit_picking WHERE fruit_picking.id=bookings.farm_id)""",
     )
 
     /** The bundled sample reviews are about specific tours. */
@@ -437,7 +493,7 @@ class Database(file: File = defaultFile()) {
             o.courierName, o.riderName, o.riderPhone, o.riderVehicle, o.currentLocation, o.estimatedArrival,
             o.trackingNumber, o.isReceivedByUser, o.receivedAt, o.receivedByRecipient, order, o.customerEmail,
         )
-        o.items.forEach { exec("INSERT INTO order_items (order_id, product_name, qty, unit_price) VALUES (?,?,?,?)", o.id, it.productName, it.qty, it.unitPrice) }
+        o.items.forEach { exec("INSERT INTO order_items (order_id, product_name, qty, unit_price, product_id) VALUES (?,?,?,?,?)", o.id, it.productName, it.qty, it.unitPrice, it.productId) }
         o.deliverySteps.forEachIndexed { i, s ->
             exec("INSERT INTO delivery_steps (order_id, step_index, title, location, timestamp, completed, notes) VALUES (?,?,?,?,?,?,?)",
                 o.id, i, s.title, s.location, s.timestamp, s.completed, s.notes)
@@ -446,7 +502,7 @@ class Database(file: File = defaultFile()) {
 
     fun orders(): List<FarmerOrder> {
         val items = query("SELECT * FROM order_items ORDER BY id") { r ->
-            r.str("order_id")!! to OrderItem(r.str("product_name")!!, r.getInt("qty"), r.getDouble("unit_price"))
+            r.str("order_id")!! to OrderItem(r.str("product_name")!!, r.getInt("qty"), r.getDouble("unit_price"), r.longOrNull("product_id"))
         }.groupBy({ it.first }, { it.second })
         val steps = query("SELECT * FROM delivery_steps ORDER BY order_id, step_index") { r ->
             r.str("order_id")!! to DeliveryCheckpoint(r.str("title")!!, r.str("location")!!, r.str("timestamp")!!, r.getInt("completed") == 1, r.str("notes"))

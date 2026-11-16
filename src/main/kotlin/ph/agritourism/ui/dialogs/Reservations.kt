@@ -146,7 +146,7 @@ internal fun BookingDossier(s: AppState, b0: Booking) {
                 InfoTile("Tourist / Guest", b.customerName, Icons.Outlined.Person, Modifier.weight(1f))
                 InfoTile("Group Size", "${b.participants} Persons", Icons.Outlined.Groups, Modifier.weight(1f))
             }
-            InfoTile("Tourist Contact Information", "📞 ${b.customerPhone ?: "+63 917 555 0192"}   ✉ ${b.customerEmail ?: "tourist@agritourism.ph"}", modifier = Modifier.fillMaxWidth())
+            InfoTile("Tourist Contact Information", "📞 ${b.customerPhone ?: "not provided"}   ✉ ${b.customerEmail ?: "walk-in guest"}", modifier = Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Label("1-Day Attendance Confirmation"); Text(b.attendanceStatus ?: "Pending Confirmation", fontWeight = FontWeight.Bold) }
                 if (b.attendanceStatus == "Pending Confirmation" && s.ownsBooking(b)) {
@@ -154,19 +154,19 @@ internal fun BookingDossier(s: AppState, b0: Booking) {
                     SecondaryButton("No", color = Palette.Red) { s.attendanceConfirmation(b.id, false) }
                 }
             }
-            Row { Text("📄 Tourist Uploaded Documents & Dossier", fontWeight = FontWeight.ExtraBold, color = Palette.Deep); Spacer(Modifier.weight(1f)); Pill("DOT Verified Guest") }
+            Row { Text("📄 Tourist Uploaded Documents & Dossier", fontWeight = FontWeight.ExtraBold, color = Palette.Deep); Spacer(Modifier.weight(1f)); Pill(if (b.uploadedIdDoc != null) "ID on file" else "No ID on file") }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InfoTile("Uploaded Valid ID", b.uploadedIdDoc ?: "Philippine National ID · Verified Eco-Tourist", Icons.Outlined.VerifiedUser, Modifier.weight(1f))
-                InfoTile("Payment Verification Proof", b.uploadedReceiptDoc ?: "GCash Reference Receipt · ₱500.00 Verified", Icons.Outlined.CreditCard, Modifier.weight(1f))
+                InfoTile("Uploaded Valid ID", b.uploadedIdDoc ?: "Not uploaded", Icons.Outlined.VerifiedUser, Modifier.weight(1f))
+                InfoTile("Payment Verification Proof", b.uploadedReceiptDoc ?: "Not uploaded (${b.paymentMethod ?: "payment method not set"})", Icons.Outlined.CreditCard, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoTile("Special Requests & Notes", b.specialRequests ?: "No special dietary or accessibility requests.", modifier = Modifier.weight(1f))
-                InfoTile("Assigned Tour Guide", b.assignedGuide ?: "Kuya Noel (Master Horticulturist)", Icons.Outlined.Explore, Modifier.weight(1f))
+                InfoTile("Assigned Tour Guide", b.assignedGuide ?: "Not yet assigned", Icons.Outlined.Explore, Modifier.weight(1f))
             }
-            if (farmer) {
+            if (farmer && s.canManageBooking(b) && b.status != "Cancelled") {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF0FDF4)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row { Text("Farmer Host Gate Controls", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold); Pill("Status: ${b.attendanceStatus ?: "Pending"}", Color.White) }
-                    if (b.attendanceStatus == "Arrived & Checked In") Text("✓ Tourist has arrived & Gate Check-In is recorded! ${b.checkedInAt ?: "Verified Today"}", color = Color(0xFF166534), fontWeight = FontWeight.Bold)
+                    if (b.attendanceStatus == "Arrived & Checked In") Text("✓ Tourist has arrived & Gate Check-In is recorded! ${b.checkedInAt ?: ""}", color = Color(0xFF166534), fontWeight = FontWeight.Bold)
                     else PrimaryButton("Mark Tourist as Arrived (Gate Check-In)", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
                     val guide = b.assignedGuide ?: DOSSIER_GUIDES.first()
                     Dropdown("Assign Guide:", (listOf(guide) + DOSSIER_GUIDES).distinct(), guide, { it }) { s.assignGuide(b.id, it) }
@@ -211,8 +211,9 @@ internal fun OrderDossier(s: AppState, id: String) {
             o.specialDeliveryNotes?.let { Text("Delivery Note: $it", fontSize = 12.sp, color = Color(0xFF92400E)) }
             Label("Ordered Items:")
             o.items.forEach { Row { Text("${it.productName} × ${it.qty}", Modifier.weight(1f), fontSize = 13.sp); Text("$PESO${money(it.qty * it.unitPrice)}", fontWeight = FontWeight.Bold) } }
-            Row { Label("Tourist Uploaded GCash Payment Proof"); Spacer(Modifier.weight(1f)); Pill("✓ Payment Verified", Color(0xFFDCFCE7), Color(0xFF166534)) }
-            AsyncImage(o.uploadedReceiptUrl, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)), ContentScale.Fit, "Uploaded Receipt")
+            Row { Label("Payment"); Spacer(Modifier.weight(1f)); Pill(o.paymentStatus, Color(0xFFDCFCE7), Color(0xFF166534)) }
+            if (o.uploadedReceiptUrl.isNotBlank()) AsyncImage(o.uploadedReceiptUrl, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)), ContentScale.Fit, "Uploaded Receipt")
+            else Sub("No payment proof uploaded for this order.")
             Label("Update Order Status:")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Pending Packing" to "Packing", "Dispatched" to "Dispatched", "Delivered" to "Delivered").forEach { (st, l) ->

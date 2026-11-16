@@ -57,7 +57,9 @@ the release. If Windows still shows a SmartScreen warning, check the SHA-256 has
   `juan.delacruz@sunnyvalefarm.ph` (farmer), `admin@agritourism.ph` (admin). Passwords are stored as
   salted PBKDF2 hashes; new sign-ups can be tourists or farmers only.
 - Access is role-based: tourists see only their own bookings, orders, cart, favorites and notifications;
-  farmers manage bookings, orders and the produce catalog; admins can do everything plus the SQL studio.
+  farmers manage only their own farm's bookings, orders and produce; admins can do everything plus the
+  SQL studio. Farmer sign-up creates a new farm profile linked to the account. Tours, orchards and
+  products not linked to any farmer account are managed by admins.
 - Tourists can review a booking after their visit (checked in or date passed), once per booking; the
   rating is added to that tour's or orchard's average.
 - No double bookings: a customer can hold only one active booking per date and time slot. This is

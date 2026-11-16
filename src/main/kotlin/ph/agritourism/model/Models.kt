@@ -32,7 +32,8 @@ fun Booking.slotKey(): String {
     return "$who|${parseDate(tourDate)?.toString() ?: tourDate.trim()}|${slotTime(tourTime)}"
 }
 
-data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role)
+/** [farmerId] links a farmer account to its farm in the farmers table. */
+data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role, val farmerId: Int? = null)
 
 @Serializable
 data class FarmTour(
@@ -50,6 +51,8 @@ data class FarmTour(
     val highlightTag: String,
     val farmerName: String,
     val thumbnails: List<String>,
+    /** Owning farm (farmers.id); null = platform-managed. */
+    val farmerId: Int? = null,
 )
 
 @Serializable
@@ -68,6 +71,7 @@ data class FruitPickingItem(
     val description: String,
     val seasonAvailability: String,
     val thumbnails: List<String> = emptyList(),
+    val farmerId: Int? = null,
 )
 
 @Serializable
@@ -84,6 +88,7 @@ data class Product(
     val imageUrl: String,
     val description: String,
     val farmOrigin: String,
+    val farmerId: Int? = null,
 ) {
     val discountedPrice: Double get() = price * (1 - discountPercent / 100.0)
 }
@@ -126,7 +131,7 @@ data class DeliveryCheckpoint(
 )
 
 @Serializable
-data class OrderItem(val productName: String, val qty: Int, val unitPrice: Double)
+data class OrderItem(val productName: String, val qty: Int, val unitPrice: Double, val productId: Long? = null)
 
 @Serializable
 data class FarmerOrder(

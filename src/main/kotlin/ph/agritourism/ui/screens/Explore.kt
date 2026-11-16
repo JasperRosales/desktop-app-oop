@@ -238,7 +238,7 @@ fun FarmerRestrictionNotice(s: AppState) {
         Spacer(Modifier.height(8.dp))
         H1("Consumer Browsing Restricted for Farm Hosts")
         Spacer(Modifier.height(6.dp))
-        Text("You are signed in as Juan Dela Cruz (Registered Farm Host at Sunnyvale Farm). Consumer tourist discovery pages (Explore Tours, Fruit Picking, Market, Farmers & Stories) are exclusive to Eco-Tourist visitors.",
+        Text("You are signed in as ${s.displayName} (Registered Farm Host at ${s.myFarmLabel}). Consumer tourist discovery pages (Explore Tours, Fruit Picking, Market, Farmers & Stories) are exclusive to Eco-Tourist visitors.",
             color = Color(0xFF334155))
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

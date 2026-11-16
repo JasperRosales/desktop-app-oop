@@ -83,7 +83,7 @@ private fun TopBar(s: AppState) {
             BadgedIcon(Icons.Outlined.Notifications, s.unreadCount, "Notifications") { s.isNotificationsOpen = !s.isNotificationsOpen }
             Spacer(Modifier.width(8.dp))
             if (s.isStaff) {
-                val active = s.farmerOrders.count { it.fulfillmentStatus == "Pending Packing" || it.fulfillmentStatus == "Dispatched" }
+                val active = s.visibleOrders.count { it.fulfillmentStatus == "Pending Packing" || it.fulfillmentStatus == "Dispatched" }
                 BadgedIcon(Icons.Outlined.Inventory2, active, "Tourist Produce Orders & Deliveries") { s.navigate(Page.FARMER_ORDERS) }
             }
             if (s.isTourist) {
@@ -164,7 +164,7 @@ private fun Sidebar(s: AppState) {
                 item(Icons.Outlined.Layers, "Dashboard", s.activePage == Page.DASHBOARD) { s.navigate(Page.DASHBOARD) }
                 if (s.userRole == Role.FARMER) {
                     item(Icons.Outlined.CalendarMonth, "Tourist Bookings & Check-In", s.activePage == Page.MY_BOOKINGS) { s.navigate(Page.MY_BOOKINGS) }
-                    item(Icons.Outlined.ShoppingBag, "Tourist Orders", s.activePage == Page.FARMER_ORDERS, "${s.farmerOrders.size}") { s.navigate(Page.FARMER_ORDERS) }
+                    item(Icons.Outlined.ShoppingBag, "Tourist Orders", s.activePage == Page.FARMER_ORDERS, "${s.visibleOrders.size}") { s.navigate(Page.FARMER_ORDERS) }
                     item(Icons.Outlined.Agriculture, "My Produce Catalog", s.activePage == Page.FARMER_PRODUCTS) { s.navigate(Page.FARMER_PRODUCTS) }
                     item(Icons.Outlined.Person, "Farmer Profile & Catalog", s.activePage == Page.FARMER_PROFILE) { s.navigate(Page.FARMER_PROFILE) }
                 } else {

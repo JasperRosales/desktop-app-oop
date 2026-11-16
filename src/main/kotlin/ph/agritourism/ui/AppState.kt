@@ -80,7 +80,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     val images: AppImages = Database.loadSeed().config
     var tours by mutableStateOf(db.tours())
     var fruitPicking by mutableStateOf(db.fruitPicking())
-    val farmers: List<FarmerProfile> = db.farmers()
+    var farmers by mutableStateOf(db.farmers())
     var reviews by mutableStateOf(db.reviews())
 
     // navigation & role
@@ -124,8 +124,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     // checkout
     var checkoutStep by mutableStateOf(1)
-    var recipientName by mutableStateOf("Maria Santos")
-    var contactPhone by mutableStateOf("+63 917 555 0192")
+    var recipientName by mutableStateOf("")
+    var contactPhone by mutableStateOf("")
     var deliveryAddress by mutableStateOf("Unit 402 Greenbelt Residences, Legazpi St, Makati City")
     var deliveryNotes by mutableStateOf("Please leave with building reception if unavailable.")
     var paymentMethod by mutableStateOf("GCash")
@@ -164,8 +164,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var currentSlide by mutableStateOf(0)
 
     // walk-in booking form
-    var newBookingCustomer by mutableStateOf("Anna Addyson")
-    var newBookingPhone by mutableStateOf("+63 918 333 4455")
+    var newBookingCustomer by mutableStateOf("")
+    var newBookingPhone by mutableStateOf("")
     var newBookingActivity by mutableStateOf(tours.first().name)
     var newBookingDate by mutableStateOf(LocalDate.now().plusDays(7).toString())
     var newBookingTime by mutableStateOf("08:00 AM - Morning Agro-Walk")
@@ -212,7 +212,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             if (!isLoggedIn) return emptyList()
             val mine = visibleBookings.map { it.id }.toSet()
             return when (userRole) {
-                Role.FARMER -> notifications.filter { it.targetRole == "farmer" }
+                Role.FARMER -> notifications.filter { it.targetRole == "farmer" && it.recipientEmail.equals(userEmail, true) }
                 // Tourists see broadcasts plus notifications addressed to them or about their own bookings.
                 Role.USER -> notifications.filter { n ->
                     n.targetRole == "tourist" && when {
@@ -238,22 +238,52 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     val displayName: String get() = currentUser?.fullName ?: userRole.displayName
     val userEmail: String get() = currentUser?.email ?: userRole.email
-    val userPhone: String get() = currentUser?.phone?.ifBlank { null } ?: "+63 917 555 0192"
+    val userPhone: String get() = currentUser?.phone.orEmpty()
 
-    /** Tourists only see their own reservations; farmers and admins see all. */
+    // ---------------------------------------------------------------- farm ownership
+    /** The farm a farmer account manages (null for tourists/admins or unlinked farmers). */
+    val myFarmId: Int? get() = if (isFarmer) currentUser?.farmerId else null
+    val myFarm: FarmerProfile? get() = myFarmId?.let { id -> farmers.firstOrNull { it.id == id } }
+    val myFarmLabel: String get() = myFarm?.farmName ?: if (isAdmin) "All Partner Farms" else "Your Farm"
+
+    /** Which farm runs the tour/orchard a booking is for. */
+    fun farmOf(b: Booking): Int? =
+        if (b.activityType == "orchard") fruitPicking.firstOrNull { it.id == b.farmId }?.farmerId
+        else tours.firstOrNull { it.id == b.farmId }?.farmerId
+
+    /** Farms whose products are in an order. */
+    fun farmsOf(o: FarmerOrder): Set<Int> {
+        val byId = products.associateBy { it.id }
+        return o.items.mapNotNull { it.productId?.let(byId::get)?.farmerId }.toSet()
+    }
+
+    /** Part of an order's value that belongs to the current farmer (whole order for admins). */
+    fun farmShare(o: FarmerOrder): Double {
+        if (!isFarmer) return o.totalAmount
+        val mine = farmProducts.map { it.id }.toSet()
+        return o.items.filter { it.productId in mine }.sumOf { it.qty * it.unitPrice }
+    }
+
+    fun canManageBooking(b: Booking) = isAdmin || (myFarmId != null && farmOf(b) == myFarmId)
+    fun canManageOrder(o: FarmerOrder) = isAdmin || (myFarmId != null && myFarmId in farmsOf(o))
+
+    val myTours: List<FarmTour> get() = if (isAdmin) tours else tours.filter { myFarmId != null && it.farmerId == myFarmId }
+    val myOrchards: List<FruitPickingItem> get() = if (isAdmin) fruitPicking else fruitPicking.filter { myFarmId != null && it.farmerId == myFarmId }
+
+    /** Tourists see their own reservations, farmers their farm's, admins all. */
     val visibleBookings: List<Booking>
         get() = when {
             !isLoggedIn -> emptyList()
-            userRole == Role.USER -> bookings.filter { it.customerEmail.equals(userEmail, true) }
-            else -> bookings
+            userRole == Role.USER -> bookings.filter(::ownsBooking)
+            else -> bookings.filter(::canManageBooking)
         }
 
-    /** Tourists only see their own orders; farmers and admins see all. */
+    /** Tourists see their own orders, farmers orders containing their produce, admins all. */
     val visibleOrders: List<FarmerOrder>
         get() = when {
             !isLoggedIn -> emptyList()
-            userRole == Role.USER -> farmerOrders.filter { it.customerEmail.equals(userEmail, true) }
-            else -> farmerOrders
+            userRole == Role.USER -> farmerOrders.filter(::ownsOrder)
+            else -> farmerOrders.filter(::canManageOrder)
         }
 
     /** Booking awaiting the tourist's 1-day attendance answer (linked through an attendance_reminder notification). */
@@ -265,17 +295,18 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         }
 
     // ---------------------------------------------------------------- dashboard metrics (live from SQLite)
-    val farmProducts: List<Product> get() = products.filter { it.farmOrigin.contains("Sunnyvale") }
+    val farmProducts: List<Product>
+        get() = when { isAdmin -> products; myFarmId != null -> products.filter { it.farmerId == myFarmId }; else -> emptyList() }
     val activeBookings: List<Booking> get() = visibleBookings.filter { it.status != "Cancelled" }
-    val openOrders: List<FarmerOrder> get() = farmerOrders.filter { it.fulfillmentStatus != "Delivered" }
-    val totalRevenue: Double get() = farmerOrders.sumOf { it.totalAmount } + bookings.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }
+    val openOrders: List<FarmerOrder> get() = visibleOrders.filter { it.fulfillmentStatus != "Delivered" }
+    val totalRevenue: Double get() = visibleOrders.sumOf(::farmShare) + activeBookings.sumOf { it.totalAmount }
     val fulfillmentRate: Double get() = if (bookings.isEmpty()) 0.0 else bookings.count { it.status != "Cancelled" } * 100.0 / bookings.size
     val monthlyBookings: List<MonthPoint>
         get() = monthlySeries(bookings.mapNotNull { b -> parseTourDate(b.tourDate)?.let { it to 1.0 } })
     val monthlyRevenue: List<MonthPoint>
         get() = monthlySeries(
-            farmerOrders.mapNotNull { o -> parseOrderDate(o.orderDate)?.let { it to o.totalAmount } } +
-                bookings.filter { it.status != "Cancelled" }.mapNotNull { b -> parseTourDate(b.tourDate)?.let { it to b.totalAmount.toDouble() } }
+            visibleOrders.mapNotNull { o -> parseOrderDate(o.orderDate)?.let { it to farmShare(o) } } +
+                activeBookings.mapNotNull { b -> parseTourDate(b.tourDate)?.let { it to b.totalAmount.toDouble() } }
         )
     val myReviews: List<CustomerReview> get() = reviews.filter { r -> r.userEmail?.equals(userEmail, true) ?: r.author.equals(displayName, true) }
     val favoriteNames: List<String>
@@ -302,8 +333,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     fun ownsBooking(b: Booking) = isTourist && b.customerEmail.equals(userEmail, true)
     fun ownsOrder(o: FarmerOrder) = isTourist && o.customerEmail.equals(userEmail, true)
-    fun canViewBooking(b: Booking) = isStaff || ownsBooking(b)
-    fun canViewOrder(o: FarmerOrder) = isStaff || ownsOrder(o)
+    fun canViewBooking(b: Booking) = canManageBooking(b) || ownsBooking(b)
+    fun canViewOrder(o: FarmerOrder) = canManageOrder(o) || ownsOrder(o)
 
     /** Admin-only raw SQL; reloads app state afterwards so the screens match the database. */
     fun runAdminSql(sql: String): Database.QueryResult {
@@ -320,7 +351,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         Page.DASHBOARD, Page.MY_BOOKINGS -> isLoggedIn
         Page.CART_CHECKOUT -> isTourist
         Page.ORDER_TRACKING -> isTourist || isAdmin
-        Page.FARMER_ORDERS, Page.FARMER_PRODUCTS, Page.FARMER_PROFILE -> isStaff
+        Page.FARMER_ORDERS, Page.FARMER_PRODUCTS -> isStaff
+        Page.FARMER_PROFILE -> isFarmer
         Page.SQL_STUDIO -> isAdmin
     }
 
@@ -387,6 +419,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         loginError = null
         loginPassword = ""
         favoriteIds = db.favorites(u.email)
+        myTours.firstOrNull()?.let { newBookingActivity = it.name }
         cart = loadCart()
         checkoutStep = 1
         activeTrackingOrderId = visibleOrders.firstOrNull()?.id ?: ""
@@ -416,9 +449,17 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     /** Creates the account in the users table; returns an error message or null on success. */
-    fun signup(fullName: String, email: String, phone: String, password: String, role: Role): String? {
+    fun signup(fullName: String, email: String, phone: String, password: String, role: Role,
+               farmName: String = "", province: String = ""): String? {
         if (role == Role.ADMIN) return "Administrator accounts cannot be self-registered."
-        val u = db.createUser(fullName, email, phone, password, role.key) ?: return "An account with this email already exists."
+        if (role == Role.FARMER && (farmName.isBlank() || province.isBlank())) return "Farmers must enter their farm name and province."
+        if (db.findUser(email) != null) return "An account with this email already exists."
+        val u = db.tx {
+            val created = db.createUser(fullName, email, phone, password, role.key)!!
+            if (role == Role.FARMER) db.createFarm(created.id, fullName, farmName, province, images.defaultProductFallbackImage)
+            db.findUser(email)!!
+        }
+        farmers = db.farmers()
         startSession(u)
         showToast("Account created successfully! Welcome to AgriTourism, ${u.fullName}.")
         activePage = Page.DASHBOARD
@@ -488,6 +529,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         var refCode: String
         do { refCode = "ORD-${LocalDate.now().year}-${Random.nextInt(1000, 10000)}" } while (refCode in existingNumbers)
         val stamp = nowStamp()
+        val originFarm = cart.first().product.farmOrigin
         val newOrderId = "ord-${System.currentTimeMillis()}"
         val order = FarmerOrder(
             id = newOrderId,
@@ -496,25 +538,25 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             customerName = recipientName.trim(),
             customerPhone = contactPhone.trim(),
             customerAddress = deliveryAddress.trim(),
-            items = cart.map { OrderItem(it.product.name, it.quantity, byId[it.product.id]!!.discountedPrice) },
+            items = cart.map { OrderItem(it.product.name, it.quantity, byId[it.product.id]!!.discountedPrice, it.product.id) },
             totalAmount = orderAmt,
             paymentMethod = paymentMethod,
             paymentStatus = if (paymentMethod == "Cash on Delivery") "COD" else "Paid via $paymentMethod",
             fulfillmentStatus = "Pending Packing",
             orderDate = stamp,
-            uploadedReceiptUrl = images.receiptSamplePhoto,
+            uploadedReceiptUrl = "", // no payment proof uploaded through the desktop checkout
             specialDeliveryNotes = deliveryNotes.ifBlank { "Please deliver fresh with protective foam padding." },
             courierName = "AgriExpress Direct Logistics",
             riderName = "Kuya Jun-Jun Ramos",
             riderPhone = "+63 920 112 3456",
             riderVehicle = "Yamaha NMAX (Insulated Box) · Plate DA 7192",
-            currentLocation = "Sunnyvale Farm packing house · Awaiting dispatch",
+            currentLocation = "${originFarm} packing house · Awaiting dispatch",
             estimatedArrival = "Within 1-2 days",
             trackingNumber = "AGX-${Random.nextInt(100000, 1000000)}",
             isReceivedByUser = false,
             deliverySteps = listOf(
                 DeliveryCheckpoint(if (paymentMethod == "Cash on Delivery") "Order Placed (Cash on Delivery)" else "Order Placed & Payment Verified", "AgriTourism Gateway", stamp, true),
-                DeliveryCheckpoint("Fresh Farm Harvest & Packed", "Sunnyvale Farm, Lipa City", "Pending", false),
+                DeliveryCheckpoint("Fresh Farm Harvest & Packed", originFarm, "Pending", false),
                 DeliveryCheckpoint("Picked Up by Courier Rider", "Lipa Express Logistics Center", "Pending", false),
                 DeliveryCheckpoint("Out for Delivery", "En route to delivery address", "Pending", false),
                 DeliveryCheckpoint("Delivered & Confirmed by Tourist", "Customer Delivery Address", "Pending arrival", false),
@@ -535,7 +577,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         lastOrderReference = refCode
         checkoutStep = 4
         cart = emptyList()
-        addNotification(AppNotification(System.currentTimeMillis(), "New Produce Order: ${order.customerName}",
+        notifyFarms(farmsOf(order), AppNotification(System.currentTimeMillis(), "New Produce Order: ${order.customerName}",
             "Order #$refCode · $PESO${money(orderAmt)} · ${order.items.sumOf { it.qty }} item(s) to pack.",
             "${order.customerName} placed order #$refCode (${order.items.joinToString { "${it.qty}× ${it.productName}" }}). Payment: ${order.paymentStatus}. Deliver to ${order.customerAddress}.",
             nowStamp(), false, "farmer_order", "farmer"))
@@ -563,13 +605,21 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         notifications = list
     }
 
-    private fun addNotification(n: AppNotification) {
+    /** Sends a farmer alert to the account of each farm involved (admins always see farmer alerts). */
+    private fun notifyFarms(farms: Set<Int?>, n: AppNotification) {
+        val emails = farms.filterNotNull().mapNotNull { db.farmerAccount(it)?.email }.distinct()
+        if (emails.isEmpty()) addNotification(n) else emails.forEach { addNotification(n.copy(recipientEmail = it)) }
+    }
+
+    private fun addNotification(n0: AppNotification) {
+        // Keep ids unique even when several alerts are created in the same millisecond.
+        val n = n0.copy(id = max(n0.id, (notifications.maxOfOrNull { it.id } ?: 0) + 1))
         db.saveNotification(n)
         notifications = listOf(n) + notifications
     }
 
     fun bookingAction(id: Long, newStatus: String) {
-        if (denied(isStaff, "accept or decline bookings")) return
+        if (denied(booking(id)?.let(::canManageBooking) == true, "accept or decline this booking")) return
         updateBooking(id) { it.copy(status = newStatus, attendanceStatus = if (newStatus == "Cancelled") "Declined by Farm" else it.attendanceStatus) }
         booking(id)?.let { b ->
             val ok = newStatus == "Confirmed"
@@ -625,9 +675,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
                     title = "Confirmed: Tour Attendance Locked In",
                     desc = "You confirmed you are proceeding tomorrow at ${b.tourTime}!").also(db::saveNotification) else it
             })
-            addNotification(AppNotification(now, "Visitor Confirmed Arrival: ${b.customerName}",
+            notifyFarms(setOf(farmOf(b)), AppNotification(now, "Visitor Confirmed Arrival: ${b.customerName}",
                 "${b.customerName} confirmed arrival for ${b.activity} on ${b.tourDate} (${b.tourTime})!",
-                "Tourist ${b.customerName} responded YES to 1-day confirmation. Booking #${b.bookingCode}. Group size: ${b.participants} guests. Contact: ${b.customerPhone ?: "+63 917 555 0192"}. Fresh farm refreshments and local guide are confirmed.",
+                "Tourist ${b.customerName} responded YES to 1-day confirmation. Booking #${b.bookingCode}. Group size: ${b.participants} guests. Contact: ${b.customerPhone ?: "not provided"}. Fresh farm refreshments and local guide are confirmed.",
                 nowStamp(), false, "farmer_attendance_alert", "farmer"))
             showToast("Your attendance for ${b.farmName} tomorrow is confirmed.")
         } else {
@@ -637,7 +687,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
                     title = "Tour Visit Cancelled",
                     desc = "You cancelled your tour appointment for ${b.farmName}.").also(db::saveNotification) else it
             })
-            addNotification(AppNotification(now, "Tourist Cancelled Visit: ${b.customerName}",
+            notifyFarms(setOf(farmOf(b)), AppNotification(now, "Tourist Cancelled Visit: ${b.customerName}",
                 "${b.customerName} responded NO for ${b.activity} on ${b.tourDate}.",
                 "Tourist ${b.customerName} responded NO to 1-day confirmation. Booking #${b.bookingCode} is now marked as Cancelled.",
                 nowStamp(), false, "farmer_attendance_alert", "farmer"))
@@ -647,7 +697,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun checkInBooking(id: Long) {
-        if (denied(isStaff, "check in guests")) return
+        if (denied(booking(id)?.let(::canManageBooking) == true, "check in guests for this booking")) return
         if (bookings.firstOrNull { it.id == id }?.status == "Cancelled") { showToast("Cancelled bookings cannot be checked in."); return }
         val nowTime = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm a"))
         updateBooking(id) { it.copy(attendanceStatus = "Arrived & Checked In", status = "Confirmed", checkedInAt = nowTime) }
@@ -656,7 +706,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun assignGuide(id: Long, guide: String) {
-        if (denied(isStaff, "assign tour guides")) return
+        if (denied(booking(id)?.let(::canManageBooking) == true, "assign a guide to this booking")) return
         updateBooking(id) { it.copy(assignedGuide = guide) }
         selectedBookingForView = selectedBookingForView?.let { v -> bookings.firstOrNull { it.id == v.id } }
         showToast("Tour guide \"$guide\" assigned to reservation.")
@@ -723,14 +773,15 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     fun saveFarmerBooking() {
         if (denied(isStaff, "create walk-in bookings")) return
+        if (myTours.isEmpty()) { showToast("Your farm has no tours to book yet."); return }
         if (newBookingCustomer.isBlank()) { showToast("Please enter the guest's name."); return }
         dateError(newBookingDate)?.let { showToast(it); return }
         if (newBookingGuests < 1) { showToast("Please add at least 1 guest."); return }
-        val t = tours.firstOrNull { it.name == newBookingActivity } ?: tours.first()
+        val t = myTours.firstOrNull { it.name == newBookingActivity } ?: myTours.first()
         val total = t.pricePerPerson * newBookingGuests
         val nb = Booking(
             id = newId(), bookingCode = newBookingCode(), farmId = t.id, farmName = t.name,
-            customerName = newBookingCustomer, customerPhone = newBookingPhone.ifBlank { "+63 917 555 0192" },
+            customerName = newBookingCustomer, customerPhone = newBookingPhone.trim().ifBlank { null },
             customerEmail = null, activity = t.name, tourDate = newBookingDate,
             tourTime = newBookingTime.ifBlank { "09:00 AM" }, participants = newBookingGuests, totalAmount = total,
             paymentMethod = newBookingPayment, attendanceStatus = "Pending Confirmation", status = "Confirmed",
@@ -766,10 +817,10 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             userEmail, b.id, b.activityType, b.farmId,
         )
         try { db.addReview(review) } catch (e: Exception) { return e.message ?: "Could not save the review." }
-        reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking()
+        reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking(); farmers = db.farmers()
         selectedTour = tours.firstOrNull { it.id == selectedTour.id } ?: selectedTour
         selectedFruit = fruitPicking.firstOrNull { it.id == selectedFruit.id } ?: selectedFruit
-        addNotification(AppNotification(System.currentTimeMillis(), "New $rating★ Review: ${b.activity}",
+        notifyFarms(setOf(farmOf(b)), AppNotification(System.currentTimeMillis(), "New $rating★ Review: ${b.activity}",
             "${review.author} reviewed booking #${b.bookingCode}.", "\"${review.comment}\" — ${review.author}",
             nowStamp(), false, "farmer_review", "farmer"))
         reviewingBooking = null
@@ -779,7 +830,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     // ---------------------------------------------------------------- products
     fun saveProduct() {
-        if (denied(isStaff, "add products")) return
+        if (denied(isAdmin || myFarmId != null, "add products")) return
         if (newProductName.isBlank()) { showToast("Please enter a product name."); return }
         val price = newProductPrice.toDoubleOrNull()
         if (price == null || price <= 0) { showToast("Please enter a valid price."); return }
@@ -791,8 +842,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             unit = if (newProductUnit.startsWith("/")) newProductUnit else "/${newProductUnit.ifBlank { "kg" }}",
             discountPercent = 0, stock = stock, rating = 0.0, reviewsCount = 0,
             imageUrl = newProductImage.ifBlank { images.defaultProductFallbackImage },
-            description = newProductDesc.ifBlank { "Freshly harvested organic produce from Sunnyvale Farm." },
-            farmOrigin = "Sunnyvale Farm (Batangas)",
+            description = newProductDesc.ifBlank { "Freshly harvested produce from ${myFarm?.farmName ?: "our partner farms"}." },
+            farmOrigin = myFarm?.let { "${it.farmName.split(" & ").first()} (${it.province})" } ?: "AgriTourism Partner Farms",
+            farmerId = myFarmId,
         )
         db.saveProduct(item, db.minSort("products") - 1)
         products = listOf(item) + products
@@ -837,7 +889,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun orderStatusUpdate(id: String, status: String) {
-        if (denied(isStaff, "update order status")) return
+        if (denied(order(id)?.let(::canManageOrder) == true, "update this order")) return
         updateOrder(id) { syncSteps(it, status) }
         showToast("Order #$id status updated to: $status")
     }
@@ -860,7 +912,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
                 },
             )
         }
-        addNotification(AppNotification(System.currentTimeMillis(), "Order Delivered & Received by Tourist!",
+        notifyFarms(order(id)?.let(::farmsOf).orEmpty(), AppNotification(System.currentTimeMillis(), "Order Delivered & Received by Tourist!",
             "Customer confirmed receiving Order #$id in good condition.",
             "Eco-tourist customer confirmed receiving the delivered organic farm produce in fresh condition. Reference #$id. Handover verified.",
             nowStamp(), false, "farmer_order", "farmer"))
@@ -868,7 +920,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun updateDeliveryLocation(id: String, location: String, status: String? = null) {
-        if (denied(isStaff, "update delivery locations")) return
+        if (denied(order(id)?.let(::canManageOrder) == true, "update this delivery")) return
         updateOrder(id) { o -> (if (status != null) syncSteps(o, status) else o).copy(currentLocation = location) }
         showToast("Delivery location updated for order #$id.")
     }
@@ -885,11 +937,12 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         if (denied(canViewBooking(b), "view this receipt")) return
         val unit = (b.totalAmount.toDouble() / max(1, b.participants)).roundToInt().toDouble()
         selectedReceipt = Receipt(
-            "RCP-${b.bookingCode}", "${b.tourDate} · Paid via ${b.paymentMethod ?: "GCash"}", b.customerName,
-            b.customerPhone ?: "+63 917 555 0192", b.customerEmail ?: "tourist@agritourism.ph", b.farmName,
-            b.assignedGuide ?: "Mang Juan Dela Cruz (Farm Host)",
+            "RCP-${b.bookingCode}", "${b.tourDate} · ${b.paymentMethod ?: "GCash"}", b.customerName,
+            b.customerPhone ?: "—", b.customerEmail ?: "Walk-in guest", b.farmName,
+            farmOf(b)?.let { id -> farmers.firstOrNull { it.id == id }?.name } ?: b.assignedGuide ?: "Farm Host",
             listOf(ReceiptItem("${b.activity} (${b.tourTime})", b.participants, unit, b.totalAmount.toDouble())),
-            b.totalAmount.toDouble(), 0.0, b.totalAmount.toDouble(), b.paymentMethod ?: "GCash", "PAID & CONFIRMED",
+            b.totalAmount.toDouble(), 0.0, b.totalAmount.toDouble(), b.paymentMethod ?: "GCash",
+            when { b.status == "Cancelled" -> "CANCELLED"; isPayOnSite(b.paymentMethod) -> "TO BE PAID AT THE FARM"; else -> "PAID & CONFIRMED" },
             "AUTH-TK-${b.id}88", "tour_booking",
         )
     }
@@ -901,10 +954,14 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         val fee = if (o.totalAmount > sub) o.totalAmount - sub else if (o.totalAmount > 0) DELIVERY_FEE else 0.0
         selectedReceipt = Receipt(
             "RCP-${o.orderNumber}", o.orderDate, o.customerName, o.customerPhone, o.customerAddress,
-            "Sunnyvale Farm & Partner Agro-Estates", "Mang Juan Dela Cruz", items, sub, fee, sub + fee,
-            o.paymentMethod, o.paymentStatus.ifBlank { "PAID & VERIFIED" }, "TXN-${o.orderNumber}-PH", "produce_order",
+            farmsOf(o).mapNotNull { id -> farmers.firstOrNull { it.id == id }?.farmName }.ifEmpty { listOf("AgriTourism Partner Farms") }.joinToString(" · "),
+            farmsOf(o).mapNotNull { id -> farmers.firstOrNull { it.id == id }?.name }.ifEmpty { listOf("AgriTourism Philippines") }.joinToString(", "),
+            items, sub, fee, sub + fee,
+            o.paymentMethod, o.paymentStatus.ifBlank { if (o.paymentMethod == "Cash on Delivery") "COD" else "PAID" }, "TXN-${o.orderNumber}-PH", "produce_order",
         )
     }
+
+    private fun isPayOnSite(method: String?) = method in setOf("Pay at Farm", "Cash on Arrival")
 
     fun currentTrackedOrder(): FarmerOrder? = visibleOrders.let { list ->
         list.firstOrNull { it.id == activeTrackingOrderId || it.orderNumber == activeTrackingOrderId } ?: list.firstOrNull()

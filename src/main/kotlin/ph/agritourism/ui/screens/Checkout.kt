@@ -264,7 +264,7 @@ fun OrderTrackingPage(s: AppState) {
         }
         Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Label("Live Route: Sunnyvale Farm (Batangas) → ${o.customerAddress.split(",").getOrNull(1)?.trim() ?: "Destination"}"); Spacer(Modifier.weight(1f)); Pill("Express Farm Corridor")
+            Label("Live Route: ${o.items.firstNotNullOfOrNull { i -> s.products.firstOrNull { it.id == i.productId }?.farmOrigin } ?: "Partner Farm"} → ${o.customerAddress.split(",").getOrNull(1)?.trim() ?: o.customerAddress.ifBlank { "Destination" }}"); Spacer(Modifier.weight(1f)); Pill("Express Farm Corridor")
         }
         Spacer(Modifier.height(10.dp))
         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE2E8F0))) {
@@ -302,7 +302,7 @@ fun OrderTrackingPage(s: AppState) {
         if (o.isReceivedByUser) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFDCFCE7)).padding(16.dp)) {
                 Text("✓ You have confirmed receipt of this order", fontWeight = FontWeight.ExtraBold, color = Color(0xFF166534))
-                Text("Verified received on ${o.receivedAt ?: "—"}. Farm host Mang Juan has been notified of the successful delivery!", fontSize = 12.sp)
+                Text("Verified received on ${o.receivedAt ?: "—"}. The farm host has been notified of the successful delivery!", fontSize = 12.sp)
             }
         } else {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
