@@ -53,6 +53,11 @@ the release. If Windows still shows a SmartScreen warning, check the SHA-256 has
 - First launch seeds it from `src/main/resources/seed.json` (farmers, tours, orchards,
   products, bookings, orders, reviews, notifications, cart, favorites, users).
 - Delete the `.db` file to reset to the original sample data.
+- The app starts signed out. Demo accounts (password `password`): `maria.santos@gmail.com` (tourist),
+  `juan.delacruz@sunnyvalefarm.ph` (farmer), `admin@agritourism.ph` (admin). Passwords are stored as
+  salted PBKDF2 hashes; new sign-ups can be tourists or farmers only.
+- Access is role-based: tourists see only their own bookings, orders, cart, favorites and notifications;
+  farmers manage bookings, orders and the produce catalog; admins can do everything plus the SQL studio.
 - Admins can inspect/query tables in **View → SQL Database Studio**.
 - Release builds also attach a pre-seeded `agritourism.db` to the GitHub release. Point
   `AGRITOURISM_DB` at that file to run the app against it.

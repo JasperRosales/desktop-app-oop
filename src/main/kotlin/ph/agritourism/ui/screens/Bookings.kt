@@ -23,7 +23,7 @@ import ph.agritourism.ui.*
 
 @Composable
 fun MyBookingsPage(s: AppState) {
-    val farmer = s.userRole == Role.FARMER
+    val farmer = s.isStaff
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Pill("Reservations & Schedule Management")
@@ -87,14 +87,14 @@ fun MyBookingsPage(s: AppState) {
                     if (b.attendanceStatus == "Arrived & Checked In") Pill("✓ Checked-in (${b.checkedInAt ?: "08:35 AM"})", Color(0xFFDCFCE7), Color(0xFF166534))
                     else PrimaryButton("Gate Check-In", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
                 }
-                if (!farmer) PrimaryButton("Online Ticket", icon = Icons.Outlined.ConfirmationNumber) { s.selectedBookingForTicket = b }
+                if (s.ownsBooking(b)) PrimaryButton("Online Ticket", icon = Icons.Outlined.ConfirmationNumber) { s.selectedBookingForTicket = b }
                 SecondaryButton("Receipt", icon = Icons.Outlined.Print) { s.printTourReceipt(b) }
                 SecondaryButton(if (farmer) "View Dossier" else "View Voucher", icon = Icons.Outlined.Visibility) { s.selectedBookingForView = b }
                 if (b.status != "Cancelled") {
                     SecondaryButton("Update", icon = Icons.Outlined.Edit) { s.editingBooking = b.copy() }
                     SecondaryButton("Cancel", icon = Icons.Outlined.Cancel, color = Color(0xFFB45309)) { s.cancelBooking(b.id) }
                 }
-                IconButton({ s.deletingBookingId = b.id }) { Icon(Icons.Outlined.Delete, "Delete booking from history", tint = Palette.Red) }
+                if (s.isAdmin || s.ownsBooking(b)) IconButton({ s.deletingBookingId = b.id }) { Icon(Icons.Outlined.Delete, "Delete booking from history", tint = Palette.Red) }
             }
             if (farmer) {
                 Spacer(Modifier.height(10.dp))
@@ -130,7 +130,7 @@ fun FarmerOrdersPage(s: AppState) {
             Sub("Review orders placed by tourists for Sunnyvale Farm produce, inspect uploaded GCash receipts, and manage packing & dispatch.")
         }
         SecondaryButton("Print Packing Slips", icon = Icons.Outlined.Download) {
-            Printing.openHtml("packing-slips.html", Printing.orderHtml(s.farmerOrders, "Sunnyvale Farm · Packing Slips"))
+            Printing.openHtml("packing-slips.html", Printing.orderHtml(s.visibleOrders, "Sunnyvale Farm · Packing Slips"))
         }
     }
     val tabs = listOf("All", "Pending Packing", "Dispatched", "Delivered")

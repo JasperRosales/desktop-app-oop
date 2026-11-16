@@ -123,7 +123,7 @@ internal fun FruitModal(s: AppState) {
 internal fun BookingDossier(s: AppState, b0: Booking) {
     val b = s.bookings.firstOrNull { it.id == b0.id } ?: b0
     val close = { s.selectedBookingForView = null }
-    val farmer = s.userRole == Role.FARMER
+    val farmer = s.isStaff
     Modal(close, 720.dp) {
         ModalHeader(if (farmer) "Tourist Reservation Dossier" else "Tourist E-Ticket & Pass", "Official AgriTourism Tour Voucher", Icons.Outlined.Eco, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -145,7 +145,7 @@ internal fun BookingDossier(s: AppState, b0: Booking) {
             InfoTile("Tourist Contact Information", "📞 ${b.customerPhone ?: "+63 917 555 0192"}   ✉ ${b.customerEmail ?: "tourist@agritourism.ph"}", modifier = Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Label("1-Day Attendance Confirmation"); Text(b.attendanceStatus ?: "Pending Confirmation", fontWeight = FontWeight.Bold) }
-                if (b.attendanceStatus == "Pending Confirmation") {
+                if (b.attendanceStatus == "Pending Confirmation" && s.ownsBooking(b)) {
                     PrimaryButton("Confirm Yes") { s.attendanceConfirmation(b.id, true) }; Spacer(Modifier.width(6.dp))
                     SecondaryButton("No", color = Palette.Red) { s.attendanceConfirmation(b.id, false) }
                 }

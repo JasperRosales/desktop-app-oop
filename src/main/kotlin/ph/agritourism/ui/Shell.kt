@@ -82,10 +82,11 @@ private fun TopBar(s: AppState) {
         if (s.isLoggedIn) {
             BadgedIcon(Icons.Outlined.Notifications, s.unreadCount, "Notifications") { s.isNotificationsOpen = !s.isNotificationsOpen }
             Spacer(Modifier.width(8.dp))
-            if (s.userRole == Role.FARMER) {
+            if (s.isStaff) {
                 val active = s.farmerOrders.count { it.fulfillmentStatus == "Pending Packing" || it.fulfillmentStatus == "Dispatched" }
                 BadgedIcon(Icons.Outlined.Inventory2, active, "Tourist Produce Orders & Deliveries") { s.navigate(Page.FARMER_ORDERS) }
-            } else {
+            }
+            if (s.isTourist) {
                 Row(Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp))
                     .clickable { s.checkoutStep = 1; s.navigate(Page.CART_CHECKOUT) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -171,10 +172,14 @@ private fun Sidebar(s: AppState) {
                     item(Icons.Outlined.AutoAwesome, "Fruit Picking", s.activePage == Page.FRUIT_PICKING) { s.navigate(Page.FRUIT_PICKING) }
                     item(Icons.Outlined.Agriculture, "Vegetables & Harvest", s.activePage == Page.MARKET) { s.navigate(Page.MARKET) }
                     item(Icons.AutoMirrored.Outlined.MenuBook, "Farmers & Stories", s.activePage == Page.FARMERS_STORIES, "Profiles") { s.navigate(Page.FARMERS_STORIES) }
-                    item(Icons.Outlined.CalendarMonth, "My Bookings", s.activePage == Page.MY_BOOKINGS) { s.navigate(Page.MY_BOOKINGS) }
+                    item(Icons.Outlined.CalendarMonth, if (s.isAdmin) "All Bookings" else "My Bookings", s.activePage == Page.MY_BOOKINGS) { s.navigate(Page.MY_BOOKINGS) }
                     item(Icons.Outlined.LocalShipping, "Delivery Tracking", s.activePage == Page.ORDER_TRACKING, "Live") { s.navigate(Page.ORDER_TRACKING) }
                 }
-                if (s.userRole == Role.ADMIN) item(Icons.Outlined.Storage, "SQL Database", s.activePage == Page.SQL_STUDIO) { s.navigate(Page.SQL_STUDIO) }
+                if (s.isAdmin) {
+                    item(Icons.Outlined.ShoppingBag, "All Orders", s.activePage == Page.FARMER_ORDERS, "${s.farmerOrders.size}") { s.navigate(Page.FARMER_ORDERS) }
+                    item(Icons.Outlined.Agriculture, "Produce Catalog", s.activePage == Page.FARMER_PRODUCTS) { s.navigate(Page.FARMER_PRODUCTS) }
+                    item(Icons.Outlined.Storage, "SQL Database", s.activePage == Page.SQL_STUDIO) { s.navigate(Page.SQL_STUDIO) }
+                }
             }
             if (s.isLoggedIn && s.userRole == Role.FARMER && expanded) {
                 Spacer(Modifier.height(12.dp))
@@ -251,10 +256,11 @@ private fun PageContent(s: AppState) {
         },
         label = "page",
     ) { p ->
-        val farmerBlocked = s.userRole == Role.FARMER && p in setOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES)
+        val farmerBlocked = s.isFarmer && p in setOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES)
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             when {
                 farmerBlocked -> FarmerRestrictionNotice(s)
+                !s.canAccess(p) -> AccessDeniedNotice(s)
                 p == Page.DASHBOARD -> when (s.userRole) {
                     Role.ADMIN -> AdminDashboard(s)
                     Role.FARMER -> FarmerDashboard(s)
@@ -275,6 +281,19 @@ private fun PageContent(s: AppState) {
                 p == Page.FARMER_PROFILE -> FarmerProfilePage(s)
                 p == Page.SQL_STUDIO -> SqlStudioPage(s)
             }
+        }
+    }
+}
+
+@Composable
+private fun AccessDeniedNotice(s: AppState) {
+    GlassCard(Modifier.fillMaxWidth(), padding = 40.dp) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Outlined.Lock, null, Modifier.size(44.dp), tint = Palette.Muted)
+            H2(if (s.isLoggedIn) "Access restricted" else "Please log in")
+            Sub(if (s.isLoggedIn) "Your ${s.userRole.subtitle} account does not have permission to view this page." else "You need to log in to view this page.")
+            if (s.isLoggedIn) PrimaryButton("Back to Dashboard") { s.navigate(Page.DASHBOARD) }
+            else PrimaryButton("Log In") { s.navigate(Page.LOGIN) }
         }
     }
 }

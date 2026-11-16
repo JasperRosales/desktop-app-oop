@@ -85,16 +85,17 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var reviews by mutableStateOf(db.reviews())
 
     // navigation & role
-    var activePage by mutableStateOf(Page.DASHBOARD)
-    var userRole by mutableStateOf(Role.ADMIN)
-    var isLoggedIn by mutableStateOf(true)
-    var currentUser by mutableStateOf(db.findUser(Role.ADMIN.email))
+    // The app starts signed out; every role-specific page and action needs a verified login.
+    var activePage by mutableStateOf(Page.HOME)
+    var userRole by mutableStateOf(Role.USER)
+    var isLoggedIn by mutableStateOf(false)
+    var currentUser by mutableStateOf<User?>(null)
     var showcaseCategory by mutableStateOf(ShowcaseCategory.ALL)
     var isSidebarCollapsed by mutableStateOf(false)
 
     // login
     var loginEmail by mutableStateOf("maria.santos@gmail.com")
-    var loginPassword by mutableStateOf("password")
+    var loginPassword by mutableStateOf("")
     var loginRoleSelect by mutableStateOf(Role.USER)
     var loginError by mutableStateOf<String?>(null)
 
@@ -119,8 +120,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var bookings by mutableStateOf(db.bookings())
     var farmerOrders by mutableStateOf(db.orders())
     var notifications by mutableStateOf(db.notifications())
-    var favoriteIds by mutableStateOf(db.favorites())
-    var cart by mutableStateOf(loadCart())
+    var favoriteIds by mutableStateOf(emptySet<Long>())
+    var cart by mutableStateOf(emptyList<CartItem>())
 
     // checkout
     var checkoutStep by mutableStateOf(1)
@@ -192,13 +193,15 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     private fun loadCart(): List<CartItem> {
         val byId = db.products().associateBy { it.id }
-        return db.cart().mapNotNull { (id, q) -> byId[id]?.let { CartItem(it, q) } }
+        val user = currentUser?.email ?: return emptyList()
+        return db.cart(user).mapNotNull { (id, q) -> byId[id]?.let { CartItem(it, q) } }
     }
 
     private fun persistCart(items: List<CartItem>) {
+        val user = currentUser?.email ?: return
         db.tx {
-            db.clearCart()
-            items.forEachIndexed { i, c -> db.setCartItem(c.product.id, c.quantity, i) }
+            db.clearCart(user)
+            items.forEachIndexed { i, c -> db.setCartItem(user, c.product.id, c.quantity, i) }
         }
         cart = items
     }
@@ -207,9 +210,17 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     val roleFilteredNotifications: List<AppNotification>
         get() {
             if (!isLoggedIn) return emptyList()
+            val mine = visibleBookings.map { it.id }.toSet()
             return when (userRole) {
-                Role.FARMER -> notifications.filter { it.targetRole == "farmer" || it.type in setOf("farmer_attendance_alert", "farmer_order", "farmer_booking_alert") }
-                Role.USER -> notifications.filter { it.targetRole == "tourist" || it.type in setOf("attendance_reminder", "booking", "market") }
+                Role.FARMER -> notifications.filter { it.targetRole == "farmer" }
+                // Tourists see broadcasts plus notifications addressed to them or about their own bookings.
+                Role.USER -> notifications.filter { n ->
+                    n.targetRole == "tourist" && when {
+                        n.recipientEmail != null -> n.recipientEmail.equals(userEmail, true)
+                        n.bookingId != null -> n.bookingId in mine
+                        else -> true
+                    }
+                }
                 Role.ADMIN -> notifications
             }
         }
@@ -231,7 +242,19 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     /** Tourists only see their own reservations; farmers and admins see all. */
     val visibleBookings: List<Booking>
-        get() = if (userRole == Role.USER) bookings.filter { it.customerEmail.equals(userEmail, true) } else bookings
+        get() = when {
+            !isLoggedIn -> emptyList()
+            userRole == Role.USER -> bookings.filter { it.customerEmail.equals(userEmail, true) }
+            else -> bookings
+        }
+
+    /** Tourists only see their own orders; farmers and admins see all. */
+    val visibleOrders: List<FarmerOrder>
+        get() = when {
+            !isLoggedIn -> emptyList()
+            userRole == Role.USER -> farmerOrders.filter { it.customerEmail.equals(userEmail, true) }
+            else -> farmerOrders
+        }
 
     /** Booking awaiting the tourist's 1-day attendance answer (linked through an attendance_reminder notification). */
     val pendingAttendanceBooking: Booking?
@@ -270,20 +293,73 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         toastJob = scope.launch { delay(3200); toastMessage = null }
     }
 
-    fun navigate(p: Page) { activePage = p }
+    // ---------------------------------------------------------------- access control
+    val isTourist get() = isLoggedIn && userRole == Role.USER
+    val isFarmer get() = isLoggedIn && userRole == Role.FARMER
+    val isAdmin get() = isLoggedIn && userRole == Role.ADMIN
+    /** Farm staff (farmer hosts and admins) manage bookings, orders and the catalog. */
+    val isStaff get() = isFarmer || isAdmin
+
+    fun ownsBooking(b: Booking) = isTourist && b.customerEmail.equals(userEmail, true)
+    fun ownsOrder(o: FarmerOrder) = isTourist && o.customerEmail.equals(userEmail, true)
+    fun canViewBooking(b: Booking) = isStaff || ownsBooking(b)
+    fun canViewOrder(o: FarmerOrder) = isStaff || ownsOrder(o)
+
+    /** Admin-only raw SQL; reloads app state afterwards so the screens match the database. */
+    fun runAdminSql(sql: String): Database.QueryResult {
+        check(isAdmin) { "Only administrators can run SQL." }
+        val r = db.runSql(sql)
+        if (r.columns.isEmpty()) reloadFromDb()
+        return r
+    }
+
+    /** Which pages each role may open. */
+    fun canAccess(p: Page): Boolean = when (p) {
+        Page.HOME, Page.LOGIN, Page.SIGNUP -> true
+        Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES -> !isFarmer
+        Page.DASHBOARD, Page.MY_BOOKINGS -> isLoggedIn
+        Page.CART_CHECKOUT -> isTourist
+        Page.ORDER_TRACKING -> isTourist || isAdmin
+        Page.FARMER_ORDERS, Page.FARMER_PRODUCTS, Page.FARMER_PROFILE -> isStaff
+        Page.SQL_STUDIO -> isAdmin
+    }
+
+    /** Returns true (and explains why) when the current user may NOT perform an action. */
+    private fun denied(allowed: Boolean, what: String): Boolean {
+        if (!isLoggedIn) { showToast("Please log in to $what."); activePage = Page.LOGIN; return true }
+        if (!allowed) { showToast("Your ${userRole.subtitle} account is not allowed to $what."); return true }
+        return false
+    }
+
+    private fun booking(id: Long) = bookings.firstOrNull { it.id == id }
+    private fun order(id: String) = farmerOrders.firstOrNull { it.id == id }
+
+    fun navigate(p: Page) {
+        when {
+            canAccess(p) -> activePage = p
+            !isLoggedIn -> { showToast("Please log in to open that page."); activePage = Page.LOGIN }
+            else -> showToast("Your ${userRole.subtitle} account cannot open that page.")
+        }
+    }
 
     fun openShowcase(c: ShowcaseCategory) { showcaseCategory = c; activePage = Page.HOME }
 
     fun reloadFromDb() {
         products = db.products(); bookings = db.bookings(); farmerOrders = db.orders()
-        notifications = db.notifications(); favoriteIds = db.favorites(); cart = loadCart()
-        reviews = db.reviews(); currentUser = currentUser?.let { db.findUser(it.email) }
+        notifications = db.notifications(); reviews = db.reviews()
+        currentUser = currentUser?.let { db.findUser(it.email) }
+        if (currentUser == null && isLoggedIn) { signOut(); return }
+        currentUser?.let { userRole = it.role }
+        favoriteIds = currentUser?.let { db.favorites(it.email) } ?: emptySet(); cart = loadCart()
+        if (!canAccess(activePage)) activePage = Page.DASHBOARD
         showToast("Reloaded data from SQLite database.")
     }
 
     fun toggleFavorite(id: Long, name: String) {
+        val user = currentUser?.email
+        if (user == null) { showToast("Log in to save favorites."); activePage = Page.LOGIN; return }
         val exists = id in favoriteIds
-        db.setFavorite(id, !exists)
+        db.setFavorite(user, id, !exists)
         favoriteIds = if (exists) favoriteIds - id else favoriteIds + id
         showToast(if (exists) "Removed \"$name\" from your favorites." else "Saved \"$name\" to your favorites.")
     }
@@ -291,8 +367,15 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     fun signOut() {
         isLoggedIn = false
         currentUser = null
+        userRole = Role.USER
+        cart = emptyList(); favoriteIds = emptySet()
+        loginPassword = ""
+        checkoutStep = 1; lastPlacedOrder = null
         isNotificationsOpen = false
         selectedNotification = null
+        isProfileModalOpen = false; isAddProductModalOpen = false; isAddBookingModalOpen = false
+        selectedBookingForView = null; selectedBookingForTicket = null; editingBooking = null; deletingBookingId = null
+        selectedOrderForView = null; selectedOrderForTracking = null; selectedReceipt = null
         activePage = Page.HOME
         showToast("Signed out successfully. Welcome to AgriTourism Philippines!")
     }
@@ -302,6 +385,11 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         userRole = u.role
         isLoggedIn = true
         loginError = null
+        loginPassword = ""
+        favoriteIds = db.favorites(u.email)
+        cart = loadCart()
+        checkoutStep = 1
+        activeTrackingOrderId = visibleOrders.firstOrNull()?.id ?: ""
         recipientName = u.fullName
         contactPhone = u.phone.ifBlank { contactPhone }
     }
@@ -353,6 +441,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             activePage = Page.LOGIN
             return
         }
+        if (!isTourist) { showToast("Only tourist accounts can buy produce."); return }
         val maxStock = product.stock
         val currentQty = cart.firstOrNull { it.product.id == product.id }?.quantity ?: 0
         if (maxStock <= 0) { showToast("Sorry, \"${product.name}\" is currently sold out!"); return }
@@ -385,6 +474,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun placeOrder() {
+        if (!isTourist) { showToast("Only tourist accounts can place orders."); return }
         if (cart.isEmpty()) { showToast("Your cart is empty."); checkoutStep = 1; return }
         deliveryDetailsError()?.let { showToast(it); checkoutStep = 2; return }
         val byId = products.associateBy { it.id }
@@ -402,6 +492,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         val order = FarmerOrder(
             id = newOrderId,
             orderNumber = refCode,
+            customerEmail = userEmail,
             customerName = recipientName.trim(),
             customerPhone = contactPhone.trim(),
             customerAddress = deliveryAddress.trim(),
@@ -432,7 +523,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         db.tx {
             db.saveOrder(order)
             cart.forEach { c -> db.updateStock(c.product.id, max(0, byId[c.product.id]!!.stock - c.quantity)) }
-            db.clearCart()
+            db.clearCart(userEmail)
         }
         farmerOrders = listOf(order) + farmerOrders
         val bought = cart.associate { it.product.id to it.quantity }
@@ -447,7 +538,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         addNotification(AppNotification(System.currentTimeMillis(), "New Produce Order: ${order.customerName}",
             "Order #$refCode · $PESO${money(orderAmt)} · ${order.items.sumOf { it.qty }} item(s) to pack.",
             "${order.customerName} placed order #$refCode (${order.items.joinToString { "${it.qty}× ${it.productName}" }}). Payment: ${order.paymentStatus}. Deliver to ${order.customerAddress}.",
-            "Just now", false, "farmer_order", "farmer"))
+            nowStamp(), false, "farmer_order", "farmer"))
         showToast("Order placed successfully! Amount: $PESO${money(orderAmt)}")
     }
 
@@ -466,16 +557,26 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun bookingAction(id: Long, newStatus: String) {
+        if (denied(isStaff, "accept or decline bookings")) return
         updateBooking(id) { it.copy(status = newStatus, attendanceStatus = if (newStatus == "Cancelled") "Declined by Farm" else it.attendanceStatus) }
+        booking(id)?.let { b ->
+            val ok = newStatus == "Confirmed"
+            addNotification(AppNotification(System.currentTimeMillis(), if (ok) "Booking Accepted: ${b.farmName}" else "Booking Declined: ${b.farmName}",
+                "Your reservation #${b.bookingCode} for ${b.tourDate} was ${if (ok) "accepted" else "declined"} by the farm host.",
+                "Reservation #${b.bookingCode} (${b.activity}, ${b.tourDate} ${b.tourTime}, ${b.participants} guests) was ${if (ok) "accepted. See you at the farm!" else "declined by the farm host."}",
+                nowStamp(), false, "booking", "tourist", b.id, recipientEmail = b.customerEmail))
+        }
         showToast("Booking ${if (newStatus == "Confirmed") "ACCEPTED" else "DECLINED"} successfully!")
     }
 
     fun cancelBooking(id: Long) {
+        if (denied(booking(id)?.let(::canViewBooking) == true, "cancel this booking")) return
         updateBooking(id) { it.copy(status = "Cancelled", attendanceStatus = "Cancelled by Tourist") }
         showToast("Booking appointment has been CANCELLED.")
     }
 
     fun deleteBooking(id: Long) {
+        if (denied(isAdmin || booking(id)?.let(::ownsBooking) == true, "delete this booking")) return
         db.tx {
             db.deleteBooking(id)
             db.deleteNotificationsForBooking(id)
@@ -487,6 +588,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun saveEditedBooking() {
+        if (denied(editingBooking?.let { e -> booking(e.id)?.let(::canViewBooking) } == true, "edit this booking")) return
         val e0 = editingBooking ?: return
         if (e0.participants < 1) { showToast("A booking needs at least 1 guest."); return }
         if (parseTourDate(e0.tourDate) == null) { showToast("Please enter a valid date (YYYY-MM-DD)."); return }
@@ -501,6 +603,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun attendanceConfirmation(bookingId: Long, willAttend: Boolean) {
+        if (denied(booking(bookingId)?.let(::ownsBooking) == true, "answer attendance for this booking")) return
         val b = bookings.firstOrNull { it.id == bookingId } ?: return
         val now = System.currentTimeMillis()
         if (willAttend) {
@@ -513,7 +616,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             addNotification(AppNotification(now, "Visitor Confirmed Arrival: ${b.customerName}",
                 "${b.customerName} confirmed arrival for ${b.activity} on ${b.tourDate} (${b.tourTime})!",
                 "Tourist ${b.customerName} responded YES to 1-day confirmation. Booking #${b.bookingCode}. Group size: ${b.participants} guests. Contact: ${b.customerPhone ?: "+63 917 555 0192"}. Fresh farm refreshments and local guide are confirmed.",
-                "Just now", false, "farmer_attendance_alert", "farmer"))
+                nowStamp(), false, "farmer_attendance_alert", "farmer"))
             showToast("Your attendance for ${b.farmName} tomorrow is confirmed.")
         } else {
             updateBooking(bookingId) { it.copy(attendanceStatus = "Cancelled by Tourist", status = "Cancelled") }
@@ -525,13 +628,14 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             addNotification(AppNotification(now, "Tourist Cancelled Visit: ${b.customerName}",
                 "${b.customerName} responded NO for ${b.activity} on ${b.tourDate}.",
                 "Tourist ${b.customerName} responded NO to 1-day confirmation. Booking #${b.bookingCode} is now marked as Cancelled.",
-                "Just now", false, "farmer_attendance_alert", "farmer"))
+                nowStamp(), false, "farmer_attendance_alert", "farmer"))
             showToast("Tour appointment cancelled. We hope to see you next time.")
         }
         selectedBookingForView = selectedBookingForView?.let { v -> bookings.firstOrNull { it.id == v.id } }
     }
 
     fun checkInBooking(id: Long) {
+        if (denied(isStaff, "check in guests")) return
         if (bookings.firstOrNull { it.id == id }?.status == "Cancelled") { showToast("Cancelled bookings cannot be checked in."); return }
         val nowTime = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm a"))
         updateBooking(id) { it.copy(attendanceStatus = "Arrived & Checked In", status = "Confirmed", checkedInAt = nowTime) }
@@ -540,6 +644,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun assignGuide(id: Long, guide: String) {
+        if (denied(isStaff, "assign tour guides")) return
         updateBooking(id) { it.copy(assignedGuide = guide) }
         selectedBookingForView = selectedBookingForView?.let { v -> bookings.firstOrNull { it.id == v.id } }
         showToast("Tour guide \"$guide\" assigned to reservation.")
@@ -561,7 +666,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun bookSelectedTour() {
-        if (!isLoggedIn) { showToast("Please log in using the Log In button at the top header to confirm your booking."); return }
+        if (!isLoggedIn) { showToast("Please log in using the Log In button at the top header to confirm your booking."); activePage = Page.LOGIN; return }
+        if (!isTourist) { showToast("Only tourist accounts can book tours."); return }
         dateError(tourDate)?.let { showToast(it); return }
         if (tourGuests < 1) { showToast("Please add at least 1 guest."); return }
         val t = selectedTour
@@ -582,7 +688,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun bookSelectedFruit() {
-        if (!isLoggedIn) { showToast("Please log in using the Log In button at the top header to confirm your booking."); return }
+        if (!isLoggedIn) { showToast("Please log in using the Log In button at the top header to confirm your booking."); activePage = Page.LOGIN; return }
+        if (!isTourist) { showToast("Only tourist accounts can book tours."); return }
         dateError(fruitDate)?.let { showToast(it); return }
         if (fruitGuests < 1) { showToast("Please add at least 1 guest."); return }
         val f = selectedFruit
@@ -602,6 +709,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun saveFarmerBooking() {
+        if (denied(isStaff, "create walk-in bookings")) return
         if (newBookingCustomer.isBlank()) { showToast("Please enter the guest's name."); return }
         dateError(newBookingDate)?.let { showToast(it); return }
         if (newBookingGuests < 1) { showToast("Please add at least 1 guest."); return }
@@ -623,6 +731,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     // ---------------------------------------------------------------- products
     fun saveProduct() {
+        if (denied(isStaff, "add products")) return
         if (newProductName.isBlank()) { showToast("Please enter a product name."); return }
         val price = newProductPrice.toDoubleOrNull()
         if (price == null || price <= 0) { showToast("Please enter a valid price."); return }
@@ -646,6 +755,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     /** Copies a picked image into the app data folder so the catalog keeps working offline. */
     fun uploadProductImage(file: File) {
+        if (denied(isStaff, "upload product photos")) return
         runCatching {
             val dir = File(Database.defaultFile().parentFile, "uploads").apply { mkdirs() }
             val dest = File(dir, "${System.currentTimeMillis()}-${file.name}")
@@ -679,11 +789,13 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun orderStatusUpdate(id: String, status: String) {
+        if (denied(isStaff, "update order status")) return
         updateOrder(id) { syncSteps(it, status) }
         showToast("Order #$id status updated to: $status")
     }
 
     fun confirmOrderReceived(id: String) {
+        if (denied(order(id)?.let(::canViewOrder) == true, "confirm this order")) return
         if (farmerOrders.firstOrNull { it.id == id }?.isReceivedByUser != false) return
         val ts = nowStamp()
         updateOrder(id) { o ->
@@ -703,23 +815,26 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         addNotification(AppNotification(System.currentTimeMillis(), "Order Delivered & Received by Tourist!",
             "Customer confirmed receiving Order #$id in good condition.",
             "Eco-tourist customer confirmed receiving the delivered organic farm produce in fresh condition. Reference #$id. Handover verified.",
-            "Just now", false, "farmer_order", "farmer"))
+            nowStamp(), false, "farmer_order", "farmer"))
         showToast("Package marked as Received! Thank you for supporting our local farmers.")
     }
 
     fun updateDeliveryLocation(id: String, location: String, status: String? = null) {
+        if (denied(isStaff, "update delivery locations")) return
         updateOrder(id) { o -> (if (status != null) syncSteps(o, status) else o).copy(currentLocation = location) }
         showToast("Delivery location updated for order #$id.")
     }
 
     // ---------------------------------------------------------------- notifications
     fun openNotification(n: AppNotification) {
+        if (n !in roleFilteredNotifications) return
         updateNotifications(notifications.map { if (it.id == n.id) it.copy(read = true).also(db::saveNotification) else it })
         selectedNotification = n
     }
 
     // ---------------------------------------------------------------- receipts / tickets
     fun printTourReceipt(b: Booking) {
+        if (denied(canViewBooking(b), "view this receipt")) return
         val unit = (b.totalAmount.toDouble() / max(1, b.participants)).roundToInt().toDouble()
         selectedReceipt = Receipt(
             "RCP-${b.bookingCode}", "${b.tourDate} · Paid via ${b.paymentMethod ?: "GCash"}", b.customerName,
@@ -732,6 +847,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     fun printOrderReceipt(o: FarmerOrder) {
+        if (denied(canViewOrder(o), "view this receipt")) return
         val items = o.items.map { ReceiptItem(it.productName, it.qty, it.unitPrice, it.qty * it.unitPrice) }
         val sub = items.sumOf { it.total }
         val fee = if (o.totalAmount > sub) o.totalAmount - sub else if (o.totalAmount > 0) DELIVERY_FEE else 0.0
@@ -742,6 +858,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         )
     }
 
-    fun currentTrackedOrder(): FarmerOrder? =
-        farmerOrders.firstOrNull { it.id == activeTrackingOrderId || it.orderNumber == activeTrackingOrderId } ?: farmerOrders.firstOrNull()
+    fun currentTrackedOrder(): FarmerOrder? = visibleOrders.let { list ->
+        list.firstOrNull { it.id == activeTrackingOrderId || it.orderNumber == activeTrackingOrderId } ?: list.firstOrNull()
+    }
 }

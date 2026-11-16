@@ -44,7 +44,7 @@ fun main() {
                     if (state.isLoggedIn) Item("Go to Workspace Dashboard") { state.navigate(Page.DASHBOARD) }
                     Item("Reset Search & Filters") { state.searchQuery = ""; state.marketFilter = "All"; state.showToast("Filters cleared.") }
                     Item("Design Mockups Gallery") { state.isMockupDrawerOpen = true }
-                    if (state.isLoggedIn && state.userRole == ph.agritourism.model.Role.ADMIN) Item("SQL Database Studio") { state.navigate(Page.SQL_STUDIO) }
+                    if (state.isAdmin) Item("SQL Database Studio") { state.navigate(Page.SQL_STUDIO) }
                 }
                 Menu("Account", mnemonic = 'A') {
                     if (state.isLoggedIn) {

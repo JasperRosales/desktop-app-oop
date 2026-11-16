@@ -128,12 +128,44 @@ class Database(file: File = defaultFile()) {
             """CREATE TABLE IF NOT EXISTS reviews (
                 id INTEGER PRIMARY KEY, author TEXT, role_tag TEXT, rating INTEGER, review_date TEXT,
                 farm_or_crop TEXT, comment TEXT)""",
-            """CREATE TABLE IF NOT EXISTS cart_items (
-                product_id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-                quantity INTEGER NOT NULL, sort_order INTEGER)""",
-            """CREATE TABLE IF NOT EXISTS favorites (item_id INTEGER PRIMARY KEY)""",
+            """CREATE TABLE IF NOT EXISTS user_cart (
+                user_email TEXT NOT NULL,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                quantity INTEGER NOT NULL, sort_order INTEGER,
+                PRIMARY KEY (user_email, product_id))""",
+            """CREATE TABLE IF NOT EXISTS user_favorites (
+                user_email TEXT NOT NULL, item_id INTEGER NOT NULL,
+                PRIMARY KEY (user_email, item_id))""",
         )
         conn.createStatement().use { st -> ddl.forEach(st::execute) }
+        migrate()
+    }
+
+    private fun columns(table: String): Set<String> =
+        query("PRAGMA table_info($table)") { it.getString("name") }.toSet()
+
+    private fun tableExists(name: String) =
+        query("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", name) { 1 }.isNotEmpty()
+
+    /** Upgrades databases created by older versions (shared cart/favorites, orders without an owner). */
+    private fun migrate() {
+        if ("customer_email" !in columns("orders")) exec("ALTER TABLE orders ADD COLUMN customer_email TEXT")
+        if ("recipient_email" !in columns("notifications")) exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
+        // Link existing orders to the account with the same name.
+        exec("""UPDATE orders SET customer_email=(SELECT email FROM users WHERE lower(users.full_name)=lower(orders.customer_name) LIMIT 1)
+                WHERE customer_email IS NULL""")
+        exec("""UPDATE notifications SET recipient_email=(SELECT customer_email FROM bookings WHERE bookings.id=notifications.booking_id)
+                WHERE recipient_email IS NULL AND booking_id IS NOT NULL AND target_role='tourist'""")
+        // The old single shared cart/favorites belonged to the demo tourist.
+        val owner = Role.USER.email
+        if (tableExists("cart_items")) {
+            exec("INSERT OR IGNORE INTO user_cart (user_email, product_id, quantity, sort_order) SELECT ?, product_id, quantity, sort_order FROM cart_items", owner)
+            exec("DROP TABLE cart_items")
+        }
+        if (tableExists("favorites")) {
+            exec("INSERT OR IGNORE INTO user_favorites (user_email, item_id) SELECT ?, item_id FROM favorites", owner)
+            exec("DROP TABLE favorites")
+        }
     }
 
     private fun seed() {
@@ -147,14 +179,17 @@ class Database(file: File = defaultFile()) {
             s.orders.forEachIndexed { i, o -> saveOrder(o, i) }
             s.notifications.forEachIndexed { i, n -> saveNotification(n, i) }
             s.reviews.forEach(::saveReview)
-            // Initial cart: mangoes x2, honey x1, banana chips x1 (same as the original app)
-            listOf(6 to 2, 8 to 1, 9 to 1).forEachIndexed { i, (idx, q) -> setCartItem(s.products[idx].id, q, i) }
-            listOf(1L, 2L, 3L).forEach { setFavorite(it, true) }
             listOf(
                 Triple("Maria Santos", "maria.santos@gmail.com", "user"),
                 Triple("Juan Dela Cruz", "juan.delacruz@sunnyvalefarm.ph", "farmer"),
                 Triple("Administrator", "admin@agritourism.ph", "admin"),
             ).forEach { (n, e, r) -> createUser(n, e, "+63 917 555 0192", DEFAULT_PASSWORD, r) }
+            // Demo tourist's initial cart (mangoes x2, honey x1, banana chips x1) and favorites.
+            val maria = Role.USER.email
+            listOf(6 to 2, 8 to 1, 9 to 1).forEachIndexed { i, (idx, q) -> setCartItem(maria, s.products[idx].id, q, i) }
+            listOf(1L, 2L, 3L).forEach { setFavorite(maria, it, true) }
+            exec("UPDATE orders SET customer_email=? WHERE customer_name='Maria Santos'", maria)
+            exec("UPDATE notifications SET recipient_email=? WHERE target_role='tourist'", maria)
         }
     }
 
@@ -342,11 +377,11 @@ class Database(file: File = defaultFile()) {
                 "total_amount", "payment_method", "payment_status", "fulfillment_status", "order_date",
                 "uploaded_receipt_url", "special_delivery_notes", "courier_name", "rider_name", "rider_phone",
                 "rider_vehicle", "current_location", "estimated_arrival", "tracking_number", "is_received_by_user",
-                "received_at", "received_by_recipient", "sort_order")),
+                "received_at", "received_by_recipient", "sort_order", "customer_email")),
             o.id, o.orderNumber, o.customerName, o.customerPhone, o.customerAddress, o.totalAmount, o.paymentMethod,
             o.paymentStatus, o.fulfillmentStatus, o.orderDate, o.uploadedReceiptUrl, o.specialDeliveryNotes,
             o.courierName, o.riderName, o.riderPhone, o.riderVehicle, o.currentLocation, o.estimatedArrival,
-            o.trackingNumber, o.isReceivedByUser, o.receivedAt, o.receivedByRecipient, order,
+            o.trackingNumber, o.isReceivedByUser, o.receivedAt, o.receivedByRecipient, order, o.customerEmail,
         )
         o.items.forEach { exec("INSERT INTO order_items (order_id, product_name, qty, unit_price) VALUES (?,?,?,?)", o.id, it.productName, it.qty, it.unitPrice) }
         o.deliverySteps.forEachIndexed { i, s ->
@@ -372,6 +407,7 @@ class Database(file: File = defaultFile()) {
                 r.str("rider_name"), r.str("rider_phone"), r.str("rider_vehicle"), r.str("current_location"),
                 r.str("estimated_arrival"), r.str("tracking_number"), steps[id].orEmpty(),
                 r.getInt("is_received_by_user") == 1, r.str("received_at"), r.str("received_by_recipient"),
+                r.str("customer_email"),
             )
         }
     }
@@ -381,8 +417,8 @@ class Database(file: File = defaultFile()) {
         val order = sortOrder ?: existingSort("notifications", n.id) ?: (minSort("notifications") - 1)
         exec(
             insertSql("notifications", listOf("id", "title", "description", "full_detail", "time_label", "is_read", "type",
-                "target_role", "booking_id", "attendance_status", "sort_order")),
-            n.id, n.title, n.desc, n.fullDetail, n.time, n.read, n.type, n.targetRole, n.bookingId, n.attendanceStatus, order,
+                "target_role", "booking_id", "attendance_status", "sort_order", "recipient_email")),
+            n.id, n.title, n.desc, n.fullDetail, n.time, n.read, n.type, n.targetRole, n.bookingId, n.attendanceStatus, order, n.recipientEmail,
         )
     }
 
@@ -390,7 +426,7 @@ class Database(file: File = defaultFile()) {
         AppNotification(
             r.getLong("id"), r.str("title")!!, r.str("description")!!, r.str("full_detail")!!, r.str("time_label")!!,
             r.getInt("is_read") == 1, r.str("type")!!, r.str("target_role")!!, r.longOrNull("booking_id"),
-            r.str("attendance_status"),
+            r.str("attendance_status"), r.str("recipient_email"),
         )
     }
 
@@ -406,22 +442,22 @@ class Database(file: File = defaultFile()) {
     }
 
     // ------------------------------------------------------------------ cart / favorites
-    fun setCartItem(productId: Long, quantity: Int, sortOrder: Int) {
-        if (quantity <= 0) exec("DELETE FROM cart_items WHERE product_id=?", productId)
-        else exec("INSERT OR REPLACE INTO cart_items (product_id, quantity, sort_order) VALUES (?,?,?)", productId, quantity, sortOrder)
+    fun setCartItem(user: String, productId: Long, quantity: Int, sortOrder: Int) {
+        if (quantity <= 0) exec("DELETE FROM user_cart WHERE user_email=? AND product_id=?", user, productId)
+        else exec("INSERT OR REPLACE INTO user_cart (user_email, product_id, quantity, sort_order) VALUES (?,?,?,?)", user, productId, quantity, sortOrder)
     }
 
-    fun clearCart() = exec("DELETE FROM cart_items")
+    fun clearCart(user: String) = exec("DELETE FROM user_cart WHERE user_email=?", user)
 
-    fun cart(): List<Pair<Long, Int>> =
-        query("SELECT product_id, quantity FROM cart_items ORDER BY sort_order") { it.getLong(1) to it.getInt(2) }
+    fun cart(user: String): List<Pair<Long, Int>> =
+        query("SELECT product_id, quantity FROM user_cart WHERE user_email=? ORDER BY sort_order", user) { it.getLong(1) to it.getInt(2) }
 
-    fun setFavorite(id: Long, fav: Boolean) {
-        if (fav) exec("INSERT OR IGNORE INTO favorites (item_id) VALUES (?)", id)
-        else exec("DELETE FROM favorites WHERE item_id=?", id)
+    fun setFavorite(user: String, id: Long, fav: Boolean) {
+        if (fav) exec("INSERT OR IGNORE INTO user_favorites (user_email, item_id) VALUES (?,?)", user, id)
+        else exec("DELETE FROM user_favorites WHERE user_email=? AND item_id=?", user, id)
     }
 
-    fun favorites(): Set<Long> = query("SELECT item_id FROM favorites") { it.getLong(1) }.toSet()
+    fun favorites(user: String): Set<Long> = query("SELECT item_id FROM user_favorites WHERE user_email=?", user) { it.getLong(1) }.toSet()
 
     // ------------------------------------------------------------------ SQL studio
     data class QueryResult(val columns: List<String>, val rows: List<List<String>>, val message: String)

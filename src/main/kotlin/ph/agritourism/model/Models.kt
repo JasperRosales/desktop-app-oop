@@ -132,6 +132,7 @@ data class FarmerOrder(
     val isReceivedByUser: Boolean = false,
     val receivedAt: String? = null,
     val receivedByRecipient: String? = null,
+    val customerEmail: String? = null,
 )
 
 @Serializable
@@ -183,6 +184,7 @@ data class AppNotification(
     val targetRole: String,
     val bookingId: Long? = null,
     val attendanceStatus: String? = null,
+    val recipientEmail: String? = null,
 )
 
 data class ReceiptItem(val name: String, val quantity: Int, val unitPrice: Double, val total: Double)

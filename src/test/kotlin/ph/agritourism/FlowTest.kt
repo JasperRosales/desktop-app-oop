@@ -24,12 +24,21 @@ class FlowTest {
 
     private fun reopen(): AppState { db.close(); db = Database(file); return AppState(db, scope) }
 
+    /** Logs [st] in as the seeded demo account for [role]. */
+    private fun AppState.loginAs(role: Role): AppState {
+        if (isLoggedIn) signOut()
+        selectLoginRole(role); loginPassword = Database.DEFAULT_PASSWORD
+        assertTrue(login(), "login as $role failed: $loginError")
+        return this
+    }
+
     @Test fun seedMatchesOriginalData() {
         assertEquals(6, s.tours.size); assertEquals(6, s.fruitPicking.size); assertEquals(5, s.farmers.size)
         assertEquals(16, s.products.size); assertEquals(4, s.bookings.size); assertEquals(3, s.farmerOrders.size)
-        assertEquals(7, s.notifications.size); assertEquals(3, s.cart.size)
-        assertEquals(setOf(1L, 2L, 3L), s.favoriteIds)
-        assertEquals(Page.DASHBOARD, s.activePage); assertEquals(Role.ADMIN, s.userRole)
+        assertEquals(7, s.notifications.size)
+        assertFalse(s.isLoggedIn); assertEquals(Page.HOME, s.activePage); assertTrue(s.cart.isEmpty())
+        s.loginAs(Role.USER)
+        assertEquals(3, s.cart.size); assertEquals(setOf(1L, 2L, 3L), s.favoriteIds)
     }
 
     @Test fun allBundledImagesLoad() {
@@ -49,10 +58,10 @@ class FlowTest {
         s.signOut(); assertFalse(s.isLoggedIn); assertEquals(Page.HOME, s.activePage)
         assertTrue(s.roleFilteredNotifications.isEmpty())
         s.addToCart(s.products[0]); assertEquals(Page.LOGIN, s.activePage) // gated
-        s.selectLoginRole(Role.FARMER); s.login()
+        s.loginAs(Role.FARMER)
         assertEquals(Role.FARMER, s.userRole); assertEquals(Page.FARMER_PROFILE, s.activePage)
         assertTrue(s.roleFilteredNotifications.all { it.targetRole == "farmer" })
-        s.signOut(); s.selectLoginRole(Role.USER); s.login()
+        s.loginAs(Role.USER)
         assertEquals(Page.DASHBOARD, s.activePage)
         assertTrue(s.roleFilteredNotifications.all { it.targetRole == "tourist" })
         assertNull(s.signup("New Tourist", "new@x.ph", "0917 555 1234", "secret1", Role.USER))
@@ -60,7 +69,7 @@ class FlowTest {
     }
 
     @Test fun cartCheckoutPersistsOrderAndStock() {
-        s.selectLoginRole(Role.USER); s.login()
+        s.loginAs(Role.USER)
         val mango = s.cart.first().product
         val stockBefore = s.products.first { it.id == mango.id }.stock
         s.updateCartQty(mango.id, 1)
@@ -79,6 +88,7 @@ class FlowTest {
     }
 
     @Test fun stockLimitEnforced() {
+        s.loginAs(Role.USER)
         val p = s.products.first { it.stock in 1..60 }
         s.cart.filter { it.product.id == p.id }.forEach { s.updateCartQty(p.id, -it.quantity) }
         repeat(p.stock + 5) { s.addToCart(p) }
@@ -86,7 +96,7 @@ class FlowTest {
     }
 
     @Test fun tourAndFruitBookingFlow() {
-        s.selectLoginRole(Role.USER); s.login()
+        s.loginAs(Role.USER)
         s.selectedTour = s.tours[1]; s.tourGuests = 3; s.isTourModalOpen = true
         s.bookSelectedTour()
         val b = s.bookings.first()
@@ -99,9 +109,11 @@ class FlowTest {
 
     @Test fun bookingLifecycle() {
         val id = 101L
+        s.loginAs(Role.USER)
         s.attendanceConfirmation(id, true)
         assertEquals("Confirmed Attending", s.bookings.first { it.id == id }.attendanceStatus)
         assertTrue(s.notifications.first().title.startsWith("Visitor Confirmed Arrival"))
+        s.loginAs(Role.FARMER)
         s.checkInBooking(id); assertEquals("Arrived & Checked In", s.bookings.first { it.id == id }.attendanceStatus)
         s.assignGuide(id, "Mang Ben (Orchard Elder)")
         s.editingBooking = s.bookings.first { it.id == id }.copy(participants = 4, tourDate = "2026-12-01"); s.saveEditedBooking()
@@ -109,11 +121,11 @@ class FlowTest {
         val s2 = reopen()
         val b = s2.bookings.first { it.id == id }
         assertEquals("Mang Ben (Orchard Elder)", b.assignedGuide); assertEquals(4, b.participants); assertEquals("Cancelled", b.status)
-        s2.deleteBooking(id); assertNull(reopen().bookings.firstOrNull { it.id == id })
+        s2.loginAs(Role.ADMIN); s2.deleteBooking(id); assertNull(reopen().bookings.firstOrNull { it.id == id })
     }
 
     @Test fun farmerOperations() {
-        s.selectLoginRole(Role.FARMER); s.login()
+        s.loginAs(Role.FARMER)
         s.newProductName = "Test Kamote"; s.newProductStock = "12"; s.newProductImage = "res:fruit_picking/kamoteng_kahoy.jpg"
         s.saveProduct()
         assertEquals("Test Kamote", s.products.first().name); assertEquals("/kg", s.products.first().unit)
@@ -134,6 +146,7 @@ class FlowTest {
     }
 
     @Test fun receiptsAndPrintHtml() {
+        s.loginAs(Role.ADMIN)
         s.printOrderReceipt(s.farmerOrders.first())
         val r = s.selectedReceipt!!
         assertEquals(r.subtotal + r.deliveryFee, r.totalAmount, 0.001)
@@ -144,8 +157,10 @@ class FlowTest {
     }
 
     @Test fun favoritesPersist() {
+        s.loginAs(Role.USER)
         s.toggleFavorite(5, "x"); s.toggleFavorite(1, "y")
-        assertEquals(setOf(2L, 3L, 5L), reopen().favoriteIds)
+        assertEquals(setOf(2L, 3L, 5L), reopen().loginAs(Role.USER).favoriteIds)
+        assertTrue(reopen().loginAs(Role.ADMIN).favoriteIds.isEmpty()) // favorites are per account
     }
 
     @Test fun authUsesDatabase() {
@@ -168,7 +183,7 @@ class FlowTest {
     }
 
     @Test fun orderValidationAndStatusSync() {
-        s.selectLoginRole(Role.USER); s.login()
+        s.loginAs(Role.USER)
         s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
         val before = s.farmerOrders.size
         s.placeOrder(); assertEquals(before, s.farmerOrders.size)
@@ -177,16 +192,16 @@ class FlowTest {
         s.deliveryAddress = "Somewhere"; s.paymentMethod = "Bank Transfer"; s.placeOrder()
         val o = s.farmerOrders.first()
         assertEquals("Paid via Bank Transfer", o.paymentStatus); assertEquals("Pending Packing", o.fulfillmentStatus)
-        s.orderStatusUpdate(o.id, "Dispatched")
+        s.loginAs(Role.FARMER); s.orderStatusUpdate(o.id, "Dispatched")
         assertTrue(s.farmerOrders.first().deliverySteps.take(4).all { it.completed })
         assertFalse(s.farmerOrders.first().deliverySteps.last().completed)
-        s.confirmOrderReceived(o.id)
+        s.loginAs(Role.USER); s.confirmOrderReceived(o.id)
         assertTrue(s.farmerOrders.first().deliverySteps.all { it.completed })
     }
 
     @Test fun deletingBookingRemovesItsNotifications() {
         assertTrue(s.notifications.any { it.bookingId == 101L })
-        s.deleteBooking(101L)
+        s.loginAs(Role.ADMIN); s.deleteBooking(101L)
         assertTrue(reopen().notifications.none { it.bookingId == 101L })
     }
 
@@ -195,8 +210,51 @@ class FlowTest {
         assertEquals(s.bookings.size.toDouble(), bookingsTotal) // all seeded dates fall in the 6-month window
         val revenue = s.monthlyRevenue.sumOf { it.value }
         assertEquals(s.farmerOrders.sumOf { it.totalAmount } + s.bookings.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }, revenue, 0.01)
-        s.selectedTour = s.tours[0]; s.tourGuests = 2; s.bookSelectedTour()
+        s.loginAs(Role.USER); s.selectedTour = s.tours[0]; s.tourGuests = 2; s.bookSelectedTour()
         assertEquals(bookingsTotal + 1, s.monthlyBookings.sumOf { it.value })
         assertEquals(6, s.monthlyBookings.size)
+    }
+
+    @Test fun roleBasedAccess() {
+        // Signed out: only public pages; actions redirect to login.
+        assertFalse(s.canAccess(Page.DASHBOARD)); s.navigate(Page.SQL_STUDIO); assertEquals(Page.LOGIN, s.activePage)
+        s.bookingAction(102L, "Confirmed"); assertEquals("Pending", s.bookings.first { it.id == 102L }.status)
+
+        // Tourist: own data only, no staff actions or admin pages.
+        s.loginAs(Role.USER)
+        assertTrue(s.visibleBookings.all { it.customerEmail == Role.USER.email })
+        assertTrue(s.visibleOrders.isNotEmpty() && s.visibleOrders.all { it.customerEmail == Role.USER.email })
+        assertTrue(s.roleFilteredNotifications.none { it.targetRole == "farmer" })
+        listOf(Page.SQL_STUDIO, Page.FARMER_ORDERS, Page.FARMER_PRODUCTS).forEach { assertFalse(s.canAccess(it), "$it") }
+        s.navigate(Page.SQL_STUDIO); assertEquals(Page.DASHBOARD, s.activePage)
+        s.bookingAction(102L, "Confirmed"); assertEquals("Pending", s.bookings.first { it.id == 102L }.status)
+        s.checkInBooking(103L); assertNotEquals("Arrived & Checked In", s.bookings.first { it.id == 103L }.attendanceStatus)
+        s.cancelBooking(102L); assertEquals("Pending", s.bookings.first { it.id == 102L }.status) // someone else's booking
+        s.deleteBooking(102L); assertNotNull(s.bookings.firstOrNull { it.id == 102L })
+        val other = s.farmerOrders.first { it.customerEmail != Role.USER.email }
+        s.confirmOrderReceived(other.id); assertFalse(s.farmerOrders.first { it.id == other.id }.isReceivedByUser)
+        s.newProductName = "Hack"; s.saveProduct(); assertTrue(s.products.none { it.name == "Hack" })
+        assertFails { s.runAdminSql("DELETE FROM users") }
+
+        // Farmer: manages bookings/orders but cannot buy, book, or open admin pages.
+        s.loginAs(Role.FARMER)
+        assertFalse(s.canAccess(Page.SQL_STUDIO)); assertFalse(s.canAccess(Page.MARKET)); assertFalse(s.canAccess(Page.CART_CHECKOUT))
+        val cartBefore = db.cart(Role.FARMER.email)
+        s.addToCart(s.products.first { it.stock > 0 }); assertEquals(cartBefore, db.cart(Role.FARMER.email))
+        val n = s.bookings.size; s.bookSelectedTour(); assertEquals(n, s.bookings.size)
+        s.attendanceConfirmation(101L, true); assertNotEquals("Confirmed Attending", s.bookings.first { it.id == 101L }.attendanceStatus)
+        s.bookingAction(102L, "Confirmed"); assertEquals("Confirmed", s.bookings.first { it.id == 102L }.status)
+        // The tourist who owns booking 102 is notified; others are not.
+        assertTrue(s.notifications.first().recipientEmail == "james.smith@outlook.com")
+        s.loginAs(Role.USER); assertTrue(s.roleFilteredNotifications.none { it.bookingId == 102L })
+
+        // Admin: everything, including SQL (which refreshes app state).
+        s.loginAs(Role.ADMIN)
+        Page.entries.forEach { assertTrue(s.canAccess(it) || it in setOf(Page.CART_CHECKOUT), "$it") }
+        s.runAdminSql("UPDATE products SET stock=0 WHERE id=101")
+        assertEquals(0, s.products.first { it.id == 101L }.stock)
+
+        // Signing out clears the session's private data.
+        s.signOut(); assertTrue(s.cart.isEmpty() && s.favoriteIds.isEmpty() && s.visibleBookings.isEmpty())
     }
 }

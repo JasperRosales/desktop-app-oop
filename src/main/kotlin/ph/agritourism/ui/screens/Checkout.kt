@@ -194,7 +194,7 @@ private fun ConfirmStep(s: AppState) {
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton("Track Delivery Route Now →", icon = Icons.Outlined.LocalShipping) { s.checkoutStep = 1; s.navigate(Page.ORDER_TRACKING) }
-                SecondaryButton("Print Official Receipt", icon = Icons.Outlined.Print) { (s.lastPlacedOrder ?: s.farmerOrders.firstOrNull())?.let(s::printOrderReceipt) }
+                SecondaryButton("Print Official Receipt", icon = Icons.Outlined.Print) { (s.lastPlacedOrder ?: s.visibleOrders.firstOrNull())?.let(s::printOrderReceipt) }
                 SecondaryButton("Return to Marketplace") { s.checkoutStep = 1; s.navigate(Page.MARKET) }
                 SecondaryButton("View All Bookings") { s.navigate(Page.MY_BOOKINGS) }
             }
@@ -218,7 +218,8 @@ fun OrderTrackingPage(s: AppState) {
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.horizontalScroll(rememberScrollState())) {
         Label("Select Order to Track:"); Spacer(Modifier.width(10.dp))
-        s.farmerOrders.forEach { o ->
+        if (s.visibleOrders.isEmpty()) Sub("You have no orders yet.")
+        s.visibleOrders.forEach { o ->
             val sel = s.activeTrackingOrderId == o.id || s.activeTrackingOrderId == o.orderNumber
             Row(Modifier.padding(end = 8.dp).clip(RoundedCornerShape(12.dp)).background(if (sel) Palette.Forest else Color.White)
                 .border(1.dp, Palette.Border, RoundedCornerShape(12.dp)).clickable { s.activeTrackingOrderId = o.id }.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -301,7 +302,7 @@ fun OrderTrackingPage(s: AppState) {
         if (o.isReceivedByUser) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFDCFCE7)).padding(16.dp)) {
                 Text("✓ You have confirmed receipt of this order", fontWeight = FontWeight.ExtraBold, color = Color(0xFF166534))
-                Text("Verified received on ${o.receivedAt ?: "Nov 19, 2026"}. Farm host Mang Juan has been notified of the successful delivery!", fontSize = 12.sp)
+                Text("Verified received on ${o.receivedAt ?: "—"}. Farm host Mang Juan has been notified of the successful delivery!", fontSize = 12.sp)
             }
         } else {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -309,7 +310,7 @@ fun OrderTrackingPage(s: AppState) {
                     Text("Have you received your fresh produce?", fontWeight = FontWeight.ExtraBold)
                     Sub("Once the courier delivers your package, click the button to verify receipt and notify the farmer.")
                 }
-                PrimaryButton("Confirm Order Received", icon = Icons.Filled.Check) { s.confirmOrderReceived(o.id) }
+                if (s.ownsOrder(o)) PrimaryButton("Confirm Order Received", icon = Icons.Filled.Check) { s.confirmOrderReceived(o.id) }
             }
         }
     }

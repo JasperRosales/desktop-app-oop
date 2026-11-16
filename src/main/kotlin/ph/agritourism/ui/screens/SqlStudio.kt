@@ -31,7 +31,7 @@ fun SqlStudioPage(s: AppState) {
     val clipboard = LocalClipboardManager.current
     fun run(q: String) {
         sql = q
-        runCatching { s.db.runSql(q) }.onSuccess { result = it; error = null }.onFailure { error = it.message; result = null }
+        runCatching { s.runAdminSql(q) }.onSuccess { result = it; error = null }.onFailure { error = it.message; result = null }
     }
     LaunchedEffect(Unit) { run(sql) }
 
