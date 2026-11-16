@@ -55,7 +55,7 @@ class FlowTest {
         s.signOut(); s.selectLoginRole(Role.USER); s.login()
         assertEquals(Page.DASHBOARD, s.activePage)
         assertTrue(s.roleFilteredNotifications.all { it.targetRole == "tourist" })
-        s.signup("New Tourist", "new@x.ph", "0917", Role.USER)
+        assertNull(s.signup("New Tourist", "new@x.ph", "0917 555 1234", "secret1", Role.USER))
         assertEquals("user", db.runSql("SELECT role FROM users WHERE email='new@x.ph'").rows.single().single())
     }
 
@@ -146,5 +146,57 @@ class FlowTest {
     @Test fun favoritesPersist() {
         s.toggleFavorite(5, "x"); s.toggleFavorite(1, "y")
         assertEquals(setOf(2L, 3L, 5L), reopen().favoriteIds)
+    }
+
+    @Test fun authUsesDatabase() {
+        s.signOut()
+        s.selectLoginRole(Role.USER); s.loginPassword = "wrong"
+        assertFalse(s.login()); assertFalse(s.isLoggedIn); assertNotNull(s.loginError)
+        s.selectLoginRole(Role.FARMER); s.loginEmail = Role.USER.email; s.loginPassword = "password"
+        assertFalse(s.login()) // role mismatch
+        assertNotNull(s.signup("Dup", Role.USER.email, "", "secret1", Role.USER))
+        assertNotNull(s.signup("Boss", "boss@x.ph", "", "secret1", Role.ADMIN))
+        assertNull(s.signup("Ana Reyes", "ana@x.ph", "0917 000 1111", "secret1", Role.USER))
+        assertEquals("Ana Reyes", s.displayName); assertEquals("Ana Reyes", s.recipientName)
+        s.signOut(); s.selectLoginRole(Role.USER); s.loginEmail = "ana@x.ph"; s.loginPassword = "secret1"
+        assertTrue(s.login())
+        s.selectedTour = s.tours[0]; s.bookSelectedTour()
+        assertEquals("ana@x.ph", s.bookings.first().customerEmail)
+        assertEquals(listOf(s.bookings.first()), s.visibleBookings)
+        assertNull(s.updateProfile("Ana R. Reyes", "0917 000 2222"))
+        assertEquals("Ana R. Reyes", reopen().db.findUser("ana@x.ph")!!.fullName)
+    }
+
+    @Test fun orderValidationAndStatusSync() {
+        s.selectLoginRole(Role.USER); s.login()
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        val before = s.farmerOrders.size
+        s.placeOrder(); assertEquals(before, s.farmerOrders.size)
+        s.addToCart(s.products.first { it.stock > 0 }); s.deliveryAddress = ""
+        s.placeOrder(); assertEquals(before, s.farmerOrders.size); assertEquals(2, s.checkoutStep)
+        s.deliveryAddress = "Somewhere"; s.paymentMethod = "Bank Transfer"; s.placeOrder()
+        val o = s.farmerOrders.first()
+        assertEquals("Paid via Bank Transfer", o.paymentStatus); assertEquals("Pending Packing", o.fulfillmentStatus)
+        s.orderStatusUpdate(o.id, "Dispatched")
+        assertTrue(s.farmerOrders.first().deliverySteps.take(4).all { it.completed })
+        assertFalse(s.farmerOrders.first().deliverySteps.last().completed)
+        s.confirmOrderReceived(o.id)
+        assertTrue(s.farmerOrders.first().deliverySteps.all { it.completed })
+    }
+
+    @Test fun deletingBookingRemovesItsNotifications() {
+        assertTrue(s.notifications.any { it.bookingId == 101L })
+        s.deleteBooking(101L)
+        assertTrue(reopen().notifications.none { it.bookingId == 101L })
+    }
+
+    @Test fun chartsUseDatabaseValues() {
+        val bookingsTotal = s.monthlyBookings.sumOf { it.value }
+        assertEquals(s.bookings.size.toDouble(), bookingsTotal) // all seeded dates fall in the 6-month window
+        val revenue = s.monthlyRevenue.sumOf { it.value }
+        assertEquals(s.farmerOrders.sumOf { it.totalAmount } + s.bookings.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }, revenue, 0.01)
+        s.selectedTour = s.tours[0]; s.tourGuests = 2; s.bookSelectedTour()
+        assertEquals(bookingsTotal + 1, s.monthlyBookings.sumOf { it.value })
+        assertEquals(6, s.monthlyBookings.size)
     }
 }

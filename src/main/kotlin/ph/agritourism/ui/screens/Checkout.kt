@@ -34,7 +34,7 @@ fun CheckoutPage(s: AppState) {
             val active = step <= s.checkoutStep
             Text(t, Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (active) Palette.Forest else Color.White)
                 .border(1.dp, if (active) Palette.Forest else Palette.Border, RoundedCornerShape(50))
-                .clickable { if (step <= s.checkoutStep) s.checkoutStep = step }.padding(vertical = 10.dp),
+                .clickable { if (step <= s.checkoutStep && s.checkoutStep != 4) s.checkoutStep = step }.padding(vertical = 10.dp),
                 textAlign = TextAlign.Center, color = if (active) Color.White else Palette.Muted, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
@@ -52,7 +52,7 @@ fun CheckoutPage(s: AppState) {
             Spacer(Modifier.height(12.dp))
             Field("Special Rider Instructions", s.deliveryNotes, { s.deliveryNotes = it })
             Spacer(Modifier.height(18.dp))
-            Row { SecondaryButton("Back to Cart") { s.checkoutStep = 1 }; Spacer(Modifier.weight(1f)); PrimaryButton("Proceed to Payment Method →") { s.checkoutStep = 3 } }
+            Row { SecondaryButton("Back to Cart") { s.checkoutStep = 1 }; Spacer(Modifier.weight(1f)); PrimaryButton("Proceed to Payment Method →") { s.deliveryDetailsError()?.let(s::showToast) ?: run { s.checkoutStep = 3 } } }
         }
         3 -> PaymentStep(s)
         else -> ConfirmStep(s)

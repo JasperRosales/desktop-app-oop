@@ -55,11 +55,11 @@ private fun Brand() = Row(verticalAlignment = Alignment.CenterVertically) {
 
 @Composable
 fun SignupPage(s: AppState) {
-    var name by remember { mutableStateOf("Maria Santos") }
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("maria.santos@gmail.com") }
-    var phone by remember { mutableStateOf("+63 917 555 0192") }
-    var pw by remember { mutableStateOf("password") }
-    var pw2 by remember { mutableStateOf("password") }
+    var phone by remember { mutableStateOf("") }
+    var pw by remember { mutableStateOf("") }
+    var pw2 by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(if (s.userRole == Role.ADMIN) Role.USER else s.userRole) }
     var error by remember { mutableStateOf<String?>(null) }
     AuthLayout(s) {
@@ -74,7 +74,7 @@ fun SignupPage(s: AppState) {
             Field("", pw2, { pw2 = it }, Modifier.weight(1f), "Confirm Password", password = true)
         }
         Spacer(Modifier.height(10.dp))
-        Dropdown("Select Role", Role.entries.toList(), role, {
+        Dropdown("Select Role", listOf(Role.USER, Role.FARMER), role, {
             when (it) { Role.USER -> "Tourist (Book Tours & Buy Fruits)"; Role.FARMER -> "Farmer (Manage Farm & List Produce)"; Role.ADMIN -> "Administrator (Platform Overview)" }
         }) { role = it }
         error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = Palette.Red, fontSize = 12.sp) }
@@ -82,11 +82,13 @@ fun SignupPage(s: AppState) {
         PrimaryButton("Sign Up", Modifier.fillMaxWidth()) {
             error = when {
                 name.isBlank() || email.isBlank() || pw.isBlank() -> "Please fill in your name, email, and password."
-                !email.contains("@") -> "Please enter a valid email address."
+                !Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email.trim()) -> "Please enter a valid email address."
+                phone.isNotBlank() && phone.count(Char::isDigit) < 7 -> "Please enter a valid phone number."
+                pw.length < 6 -> "Password must be at least 6 characters."
                 pw != pw2 -> "Passwords do not match."
                 else -> null
             }
-            if (error == null) s.signup(name, email, phone, role)
+            if (error == null) error = s.signup(name, email, phone, pw, role)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -104,7 +106,10 @@ fun LoginPage(s: AppState) {
         Field("Email Address", s.loginEmail, { s.loginEmail = it }, placeholder = "you@email.com")
         Spacer(Modifier.height(10.dp))
         Row { Label("Password"); Spacer(Modifier.weight(1f)); Text("Forgot?", fontSize = 11.sp, color = Palette.Forest, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clickable { s.showToast("Password reset link sent to ${s.loginEmail}.") }) }
+            modifier = Modifier.clickable {
+                s.showToast(if (s.db.findUser(s.loginEmail) != null) "Please contact an administrator to reset the password for ${s.loginEmail}."
+                    else "No account is registered with ${s.loginEmail}.")
+            }) }
         Spacer(Modifier.height(4.dp))
         Field("", s.loginPassword, { s.loginPassword = it }, placeholder = "••••••••", password = true)
         Spacer(Modifier.height(14.dp))
@@ -120,6 +125,7 @@ fun LoginPage(s: AppState) {
                 }
             }
         }
+        s.loginError?.let { Spacer(Modifier.height(8.dp)); Text(it, color = Palette.Red, fontSize = 12.sp) }
         Spacer(Modifier.height(18.dp))
         PrimaryButton("Log In to Dashboard", Modifier.fillMaxWidth(), Icons.AutoMirrored.Outlined.Login, enabled = s.loginEmail.isNotBlank() && s.loginPassword.isNotBlank()) { s.login() }
         Spacer(Modifier.height(12.dp))

@@ -60,31 +60,48 @@ fun StatCard(label: String, value: String, sub: String, bg: Color, modifier: Mod
     }
 }
 
-/** Draws an SVG-style cubic spline chart. Segments are given in a fixed viewBox coordinate space. */
+private fun niceCeil(v: Double): Double {
+    if (v <= 0) return 4.0
+    val mag = Math.pow(10.0, Math.floor(Math.log10(v)))
+    return listOf(1.0, 2.0, 2.5, 5.0, 10.0).map { it * mag }.first { it >= v }
+}
+
+/** Smooth area chart drawn from real monthly values. */
 @Composable
-fun SplineChart(
-    viewW: Float, viewH: Float, start: Offset, curves: List<List<Float>>, baseY: Float,
-    gridY: List<Pair<Float, String>>, gridX: List<Float>, labels: List<Pair<Float, String>>, labelY: Float,
-    line: Color, fill: Color, modifier: Modifier,
-) {
+fun DataChart(points: List<MonthPoint>, line: Color, fill: Color, modifier: Modifier, formatY: (Double) -> String) {
     val tm = rememberTextMeasurer()
+    val top = niceCeil(points.maxOfOrNull { it.value } ?: 0.0)
     androidx.compose.foundation.Canvas(modifier) {
-        val sx = size.width / viewW; val sy = size.height / viewH
-        fun o(x: Float, y: Float) = Offset(x * sx, y * sy)
         val ts = TextStyle(fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-        gridY.forEach { (y, l) ->
-            drawLine(Color(0xFFD8E2DA), o(50f, y), o(viewW - 30f, y))
-            drawText(tm, l, o(6f, y - 8f), ts)
+        val left = 56.dp.toPx(); val right = size.width - 16.dp.toPx()
+        val topY = 10.dp.toPx(); val baseY = size.height - 24.dp.toPx()
+        val ticks = 4
+        (0..ticks).forEach { i ->
+            val y = baseY - (baseY - topY) * i / ticks
+            drawLine(Color(0xFFD8E2DA), Offset(left, y), Offset(right, y))
+            val r = tm.measure(formatY(top * i / ticks), ts)
+            drawText(r, topLeft = Offset(left - r.size.width - 8f, y - r.size.height / 2))
         }
-        gridX.forEach { x -> drawLine(Color(0xFFD8E2DA), o(x, gridY.first().first), o(x, baseY), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f))) }
+        if (points.isEmpty()) return@Canvas
+        val step = if (points.size > 1) (right - left) / (points.size - 1) else 0f
+        val pts = points.mapIndexed { i, p -> Offset(left + step * i, (baseY - (baseY - topY) * (p.value / top)).toFloat()) }
         val path = Path().apply {
-            moveTo(start.x * sx, start.y * sy)
-            curves.forEach { c -> cubicTo(c[0] * sx, c[1] * sy, c[2] * sx, c[3] * sy, c[4] * sx, c[5] * sy) }
+            moveTo(pts[0].x, pts[0].y)
+            for (i in 1 until pts.size) {
+                val p0 = pts[maxOf(i - 2, 0)]; val p1 = pts[i - 1]; val p2 = pts[i]; val p3 = pts[minOf(i + 1, pts.lastIndex)]
+                // Catmull-Rom to Bezier, clamped so the curve never dips below zero.
+                cubicTo(p1.x + (p2.x - p0.x) / 6, minOf(baseY, p1.y + (p2.y - p0.y) / 6),
+                    p2.x - (p3.x - p1.x) / 6, minOf(baseY, p2.y - (p3.y - p1.y) / 6), p2.x, p2.y)
+            }
         }
-        val area = Path().apply { addPath(path); val last = curves.last(); lineTo(last[4] * sx, baseY * sy); lineTo(start.x * sx, baseY * sy); close() }
+        val area = Path().apply { addPath(path); lineTo(pts.last().x, baseY); lineTo(pts.first().x, baseY); close() }
         drawPath(area, Brush.verticalGradient(listOf(fill.copy(alpha = 0.45f), fill.copy(alpha = 0f))))
-        drawPath(path, line, style = Stroke(width = 3.5f * minOf(sx, sy).coerceAtLeast(1f), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        labels.forEach { (x, l) -> val r = tm.measure(l, ts); drawText(r, topLeft = Offset(x * sx - r.size.width / 2, labelY * sy - r.size.height)) }
+        drawPath(path, line, style = Stroke(width = 3.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        pts.forEachIndexed { i, o ->
+            drawCircle(Color.White, 5f, o); drawCircle(line, 5f, o, style = Stroke(2.5f))
+            val r = tm.measure(points[i].label, ts)
+            drawText(r, topLeft = Offset(o.x - r.size.width / 2, size.height - r.size.height))
+        }
     }
 }
 
@@ -95,38 +112,30 @@ fun AdminDashboard(s: AppState) {
         Pill("● System Healthy · Live", Color(0xFFDCFCE7), Color(0xFF166534))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        StatCard("Total Users", "1,248", "↑ +14% from last month", Color(0xFFE0F2FE), Modifier.weight(1f))
-        StatCard("Total Farms", "86", "Active accredited estates", Color(0xFFE3F1E7), Modifier.weight(1f))
-        StatCard("Total Bookings", "342", "98.4% fulfillment rate", Color(0xFFFEF3E2), Modifier.weight(1f))
-        StatCard("Total Products", "1,560", "Organic vegetables & fruits", Color(0xFFEDE9FE), Modifier.weight(1f))
+        StatCard("Total Users", money(s.db.userCount()), "Registered accounts", Color(0xFFE0F2FE), Modifier.weight(1f))
+        StatCard("Total Farms", money(s.farmers.size), "${s.tours.size} tours · ${s.fruitPicking.size} orchards", Color(0xFFE3F1E7), Modifier.weight(1f))
+        StatCard("Total Bookings", money(s.bookings.size), "%.1f%% fulfillment rate".format(s.fulfillmentRate), Color(0xFFFEF3E2), Modifier.weight(1f)) { s.navigate(Page.MY_BOOKINGS) }
+        StatCard("Total Products", money(s.products.size), "${s.products.count { it.stock > 0 }} in stock", Color(0xFFEDE9FE), Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         GlassCard(Modifier.weight(1.6f)) {
-            SectionHeader("Bookings Overview", "Monthly reservation volume across all accredited tourist farms") {
-                TextButton({ s.navigate(Page.MY_BOOKINGS); s.showToast("Opened Farm Bookings management!") }) { Text("View Reports", fontWeight = FontWeight.Bold) }
+            SectionHeader("Bookings Overview", "Monthly reservations by tour date (last 6 months)") {
+                TextButton({ s.navigate(Page.MY_BOOKINGS) }) { Text("View Reports", fontWeight = FontWeight.Bold) }
             }
             Spacer(Modifier.height(12.dp))
-            SplineChart(
-                650f, 250f, Offset(50f, 190f),
-                listOf(listOf(100f, 155f, 120f, 160f, 150f, 160f), listOf(180f, 160f, 200f, 145f, 230f, 135f),
-                    listOf(260f, 120f, 280f, 155f, 310f, 160f), listOf(340f, 165f, 360f, 145f, 390f, 145f),
-                    listOf(430f, 145f, 470f, 95f, 510f, 70f), listOf(540f, 50f, 570f, 90f, 600f, 105f)),
-                220f, listOf(25f to "300", 65f to "200", 105f to "150", 145f to "100", 185f to "50", 220f to "0"),
-                listOf(75f, 150f, 225f, 300f, 375f, 450f, 525f, 600f),
-                listOf(50f to "Jan", 130f to "Feb", 210f to "Mar", 290f to "Apr", 370f to "May", 450f to "Jun", 530f to "Jul", 600f to "Aug"), 248f,
-                Palette.Teal, Color(0xFF14B8A6), Modifier.fillMaxWidth().height(260.dp),
-            )
+            DataChart(s.monthlyBookings, Palette.Teal, Color(0xFF14B8A6), Modifier.fillMaxWidth().height(260.dp)) { v ->
+                if (v == Math.floor(v)) money(v) else "%.1f".format(v)
+            }
             TextButton({ s.navigate(Page.MY_BOOKINGS) }, Modifier.align(Alignment.End)) { Text("View All Bookings Table →", fontWeight = FontWeight.Bold) }
         }
         GlassCard(Modifier.weight(1f)) {
             H2("Recent Activities")
             Spacer(Modifier.height(12.dp))
-            listOf(
-                Triple(Icons.Outlined.Person, "New user registered", "Anna Addyson - (Tourist)") to "5 minutes ago",
-                Triple(Icons.Outlined.Description, "New product added", "Exotic Mangoes (Sunnyvale Farm)") to "55 minutes ago",
-                Triple(Icons.Outlined.EventAvailable, "Booking confirmed", "Jasmine Siddiqui (Green Valley Farm)") to "12 minutes ago",
-                Triple(Icons.Outlined.BarChart, "Report generated", "Monthly_report (May_2026)") to "1 hour ago",
-            ).forEach { (t, time) ->
+            if (s.notifications.isEmpty()) Sub("No recent activity.")
+            s.notifications.take(4).map { n ->
+                Triple(when (n.type) { "farmer_order", "market" -> Icons.Outlined.Description; "booking", "farmer_booking_alert" -> Icons.Outlined.EventAvailable; else -> Icons.Outlined.Person },
+                    n.title, n.desc) to n.time
+            }.forEach { (t, time) ->
                 Row(Modifier.padding(vertical = 10.dp)) {
                     Box(Modifier.size(40.dp).clip(CircleShape).background(Palette.Mint), contentAlignment = Alignment.Center) { Icon(t.first, null, tint = Palette.Forest) }
                     Spacer(Modifier.width(12.dp))
@@ -140,24 +149,20 @@ fun AdminDashboard(s: AppState) {
 @Composable
 fun FarmerDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { H1("Welcome, Juan Dela Cruz"); Sub("Sunnyvale Farm · Accredited AgriTourism Host (Bauan, Batangas)") }
+        Column(Modifier.weight(1f)) { H1("Welcome, ${s.displayName}"); Sub("Sunnyvale Farm · Accredited AgriTourism Host (Bauan, Batangas)") }
         PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        StatCard("Total Products", "12", "Active in marketplace", Color(0xFFDFF1E6), Modifier.weight(1f))
-        StatCard("New Orders", "8", "Ready for packing & delivery", Color(0xFFDDEAF8), Modifier.weight(1f))
-        StatCard("Active Bookings", "15", "Upcoming weekend visitors", Color(0xFFFCEBD6), Modifier.weight(1f))
+        StatCard("Total Products", "${s.farmProducts.size}", "Active in marketplace", Color(0xFFDFF1E6), Modifier.weight(1f)) { s.navigate(Page.FARMER_PRODUCTS) }
+        StatCard("New Orders", "${s.openOrders.size}", "Ready for packing & delivery", Color(0xFFDDEAF8), Modifier.weight(1f)) { s.navigate(Page.FARMER_ORDERS) }
+        StatCard("Active Bookings", "${s.activeBookings.size}", "Upcoming farm visitors", Color(0xFFFCEBD6), Modifier.weight(1f)) { s.navigate(Page.MY_BOOKINGS) }
     }
     GlassCard {
-        SectionHeader("Farm Sales & Revenue Graph", "Monthly harvest sales and visitor tour revenues (PHP)") { Pill("Year 2026: ₱148,500 Total") }
+        SectionHeader("Farm Sales & Revenue Graph", "Monthly produce orders + tour booking revenue (PHP, last 6 months)") { Pill("Total: $PESO${money(s.totalRevenue)}") }
         Spacer(Modifier.height(10.dp))
-        SplineChart(
-            650f, 200f, Offset(50f, 150f),
-            listOf(listOf(120f, 130f, 180f, 140f, 230f, 110f), listOf(290f, 80f, 360f, 120f, 420f, 70f), listOf(490f, 30f, 550f, 65f, 600f, 50f)),
-            175f, listOf(20f to "₱40k", 60f to "₱30k", 100f to "₱20k", 140f to "₱10k", 175f to "₱0"), emptyList(),
-            listOf(50f to "Jan", 140f to "Feb", 230f to "Mar", 320f to "Apr", 410f to "May", 500f to "Jun", 600f to "Jul"), 198f,
-            Color(0xFF15803D), Color(0xFF16A34A), Modifier.fillMaxWidth().height(210.dp),
-        )
+        DataChart(s.monthlyRevenue, Color(0xFF15803D), Color(0xFF16A34A), Modifier.fillMaxWidth().height(210.dp)) { v ->
+            if (v >= 1000) "$PESO${"%.1f".format(v / 1000).removeSuffix(".0")}k" else "$PESO${money(v)}"
+        }
     }
     GlassCard {
         SectionHeader("Recent Tour Bookings", "Accept or manage visitor requests for Sunnyvale Farm") {
@@ -194,12 +199,10 @@ fun FarmerDashboard(s: AppState) {
         SectionHeader("My Farm Products") { TextButton({ s.navigate(Page.FARMER_PRODUCTS) }) { Text("View All in Catalog →", fontWeight = FontWeight.Bold) } }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            listOf(
-                Triple("Carabao Mangoes", "₱120 /kg", Icons.Outlined.AutoAwesome) to Color(0xFFFDE68A),
-                Triple("Farm Fresh Eggs", "₱150 /dozen", Icons.Outlined.EmojiEvents) to Color(0xFFF5DEB3),
-                Triple("Organic Vegetables", "₱80 /kg", Icons.Outlined.Agriculture) to Color(0xFFBBF7D0),
-                Triple("Pure Wild Honey", "₱250 /bottle", Icons.Outlined.WaterDrop) to Color(0xFFFCD9A8),
-            ).forEach { (p, c) ->
+            s.farmProducts.take(4).zip(listOf(
+                Icons.Outlined.AutoAwesome to Color(0xFFFDE68A), Icons.Outlined.EmojiEvents to Color(0xFFF5DEB3),
+                Icons.Outlined.Agriculture to Color(0xFFBBF7D0), Icons.Outlined.WaterDrop to Color(0xFFFCD9A8),
+            )).map { (pr, ic) -> Triple(pr.name, "$PESO${money(pr.discountedPrice)} ${pr.unit}", ic.first) to ic.second }.forEach { (p, c) ->
                 Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).border(1.dp, Palette.Border, RoundedCornerShape(16.dp))) {
                     Box(Modifier.fillMaxWidth().height(80.dp).background(Brush.linearGradient(listOf(c, c.copy(alpha = 0.5f)))), contentAlignment = Alignment.Center) {
                         Icon(p.third, null, Modifier.size(34.dp), tint = Palette.Deep)
@@ -216,10 +219,10 @@ fun FarmerDashboard(s: AppState) {
 @Composable
 fun TouristDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { H1("Hello, Maria!"); Sub("Where do you want to go today?") }
+        Column(Modifier.weight(1f)) { H1("Hello, ${s.displayName.substringBefore(" ")}!"); Sub("Where do you want to go today?") }
         PrimaryButton("Book a Tour", icon = Icons.Outlined.Explore) { s.navigate(Page.FARM_DETAIL) }
     }
-    s.bookings.firstOrNull { it.id == 101L }?.let { t ->
+    s.pendingAttendanceBooking?.let { t ->
         val confirmed = t.attendanceStatus == "Confirmed Attending"
         val cancelled = t.attendanceStatus == "Cancelled by Tourist" || t.status == "Cancelled"
         val (bg, accent) = when { confirmed -> Color(0xFFF0FDF4) to Color(0xFF15803D); cancelled -> Color(0xFFFEF2F2) to Palette.Red; else -> Color(0xFFFFFBEB) to Color(0xFFB45309) }
@@ -250,9 +253,15 @@ fun TouristDashboard(s: AppState) {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        MiniStat(Icons.Outlined.CalendarMonth, "2", "Active Bookings", Modifier.weight(1f)) { s.navigate(Page.MY_BOOKINGS) }
-        MiniStat(Icons.Outlined.Star, "1", "Submitted Reviews", Modifier.weight(1f)) { s.showToast("You have 1 posted review. Thank you for supporting local farmers!") }
-        MiniStat(Icons.Outlined.FavoriteBorder, "5", "Wishlisted Farms", Modifier.weight(1f)) { s.showToast("5 farms wishlisted: Sunflower Farm, Laurel View, Banaue, Sunnyvale, Riverside.") }
+        val reviewCount = s.myReviews.size
+        val favs = s.favoriteNames
+        MiniStat(Icons.Outlined.CalendarMonth, "${s.activeBookings.size}", "Active Bookings", Modifier.weight(1f)) { s.navigate(Page.MY_BOOKINGS) }
+        MiniStat(Icons.Outlined.Star, "$reviewCount", "Submitted Reviews", Modifier.weight(1f)) {
+            s.showToast(if (reviewCount == 0) "You haven't posted any reviews yet." else "You have $reviewCount posted review(s). Thank you for supporting local farmers!")
+        }
+        MiniStat(Icons.Outlined.FavoriteBorder, "${favs.size}", "Wishlisted Farms", Modifier.weight(1f)) {
+            s.showToast(if (favs.isEmpty()) "No farms wishlisted yet. Tap the heart on a farm to save it." else "${favs.size} farm(s) wishlisted: ${favs.joinToString()}.")
+        }
     }
     Box(Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(24.dp))) {
         AsyncImage(s.images.farmLifeBannerPhoto, Modifier.fillMaxSize())

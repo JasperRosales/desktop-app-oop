@@ -45,10 +45,10 @@ fun FarmerProfilePage(s: AppState) {
     }
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         listOf(
-            listOf("Tourist Rating", "4.9 / 5.0", "145 verified reviews"),
-            listOf("Listed Products", "${s.products.size} Items", "Fresh organic produce"),
-            listOf("Active Tours", "${s.tours.size} Tours", "Agro-trail & Fruit Picking"),
-            listOf("Tour Bookings", "${s.bookings.size} Bookings", "₱148,200 revenue"),
+            listOf("Tourist Rating", if (s.reviews.isEmpty()) "No ratings" else "%.1f / 5.0".format(s.reviews.map { it.rating }.average()), "${s.reviews.size} verified reviews"),
+            listOf("Listed Products", "${s.farmProducts.size} Items", "Fresh organic produce"),
+            listOf("Active Tours", "${s.tours.size + s.fruitPicking.size} Tours", "Agro-trail & Fruit Picking"),
+            listOf("Tour Bookings", "${s.bookings.size} Bookings", "$PESO${money(s.bookings.filter { it.status != "Cancelled" }.sumOf { it.totalAmount })} revenue"),
         ).zip(listOf(Icons.Outlined.Star, Icons.Outlined.Spa, Icons.Outlined.Explore, Icons.Outlined.EmojiEvents)).forEach { (st, ic) ->
             GlassCard(Modifier.weight(1f)) {
                 Icon(ic, null, tint = Palette.Forest); Spacer(Modifier.height(6.dp))

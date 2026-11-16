@@ -30,6 +30,8 @@ class Database(file: File = defaultFile()) {
         }
         createSchema()
         if (count("products") == 0 && count("tours") == 0) seed()
+        // Older databases stored users without passwords; give them the documented default.
+        exec("UPDATE users SET password_hash=? WHERE password_hash IS NULL OR password_hash=''", hashPassword(DEFAULT_PASSWORD))
     }
 
     companion object {
@@ -45,6 +47,23 @@ class Database(file: File = defaultFile()) {
             val text = Database::class.java.getResource("/seed.json")!!.readText()
             return json.decodeFromString(SeedData.serializer(), text)
         }
+
+        const val DEFAULT_PASSWORD = "password"
+
+        /** Salted PBKDF2 hash stored as "salt:hash" (hex). */
+        fun hashPassword(password: String, salt: ByteArray = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }): String {
+            val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 65_536, 256)
+            val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            return salt.hex() + ":" + hash.hex()
+        }
+
+        fun verifyPassword(password: String, stored: String?): Boolean {
+            val salt = stored?.substringBefore(":", "")?.takeIf { it.isNotEmpty() } ?: return false
+            val bytes = salt.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            return java.security.MessageDigest.isEqual(hashPassword(password, bytes).toByteArray(), stored.toByteArray())
+        }
+
+        private fun ByteArray.hex() = joinToString("") { "%02x".format(it) }
 
         fun List<String>.enc() = json.encodeToString(strList, this)
         fun String.decList(): List<String> = json.decodeFromString(strList, this)
@@ -135,7 +154,7 @@ class Database(file: File = defaultFile()) {
                 Triple("Maria Santos", "maria.santos@gmail.com", "user"),
                 Triple("Juan Dela Cruz", "juan.delacruz@sunnyvalefarm.ph", "farmer"),
                 Triple("Administrator", "admin@agritourism.ph", "admin"),
-            ).forEach { (n, e, r) -> upsertUser(n, e, "+63 917 555 0192", r) }
+            ).forEach { (n, e, r) -> createUser(n, e, "+63 917 555 0192", DEFAULT_PASSWORD, r) }
         }
     }
 
@@ -187,11 +206,29 @@ class Database(file: File = defaultFile()) {
         conn.createStatement().use { it.executeQuery("SELECT COALESCE(MIN(sort_order),0) FROM $table").use { r -> r.next(); r.getInt(1) } }
 
     // ------------------------------------------------------------------ users
-    fun upsertUser(fullName: String, email: String, phone: String, role: String) = exec(
-        """INSERT INTO users (full_name, email, phone, role) VALUES (?,?,?,?)
-           ON CONFLICT(email) DO UPDATE SET full_name=excluded.full_name, phone=excluded.phone, role=excluded.role""",
-        fullName, email, phone, role,
-    )
+    private fun mapUser(r: ResultSet) = User(r.getLong("id"), r.str("full_name")!!, r.str("email")!!, r.str("phone") ?: "", Role.of(r.str("role")!!))
+
+    fun findUser(email: String): User? =
+        query("SELECT * FROM users WHERE lower(email)=lower(?)", email.trim(), map = ::mapUser).firstOrNull()
+
+    /** Inserts a new account; returns null if the email is already registered. */
+    fun createUser(fullName: String, email: String, phone: String, password: String, role: String): User? {
+        if (findUser(email) != null) return null
+        exec("INSERT INTO users (full_name, email, phone, password_hash, role) VALUES (?,?,?,?,?)",
+            fullName.trim(), email.trim(), phone.trim(), hashPassword(password), role)
+        return findUser(email)
+    }
+
+    /** Returns the user if the email/password pair matches a stored account. */
+    fun authenticate(email: String, password: String): User? {
+        val hash = query("SELECT password_hash FROM users WHERE lower(email)=lower(?)", email.trim()) { it.getString(1) }.firstOrNull()
+        return if (verifyPassword(password, hash)) findUser(email) else null
+    }
+
+    fun updateUserProfile(id: Long, fullName: String, phone: String) =
+        exec("UPDATE users SET full_name=?, phone=? WHERE id=?", fullName.trim(), phone.trim(), id)
+
+    fun userCount(): Int = count("users")
 
     // ------------------------------------------------------------------ farmers / tours / fruit
     private fun saveFarmer(f: FarmerProfile) = exec(
@@ -283,6 +320,8 @@ class Database(file: File = defaultFile()) {
 
     fun deleteBooking(id: Long) = exec("DELETE FROM bookings WHERE id=?", id)
 
+    fun deleteNotificationsForBooking(bookingId: Long) = exec("DELETE FROM notifications WHERE booking_id=?", bookingId)
+
     fun bookings(): List<Booking> = query("SELECT * FROM bookings ORDER BY sort_order, id") { r ->
         Booking(
             r.getLong("id"), r.str("booking_code")!!, r.getInt("farm_id"), r.str("farm_name")!!, r.str("customer_name")!!,
@@ -356,7 +395,7 @@ class Database(file: File = defaultFile()) {
     }
 
     // ------------------------------------------------------------------ reviews
-    private fun saveReview(v: CustomerReview) = exec(
+    fun saveReview(v: CustomerReview) = exec(
         insertSql("reviews", listOf("id", "author", "role_tag", "rating", "review_date", "farm_or_crop", "comment")),
         v.id, v.author, v.roleTag, v.rating, v.date, v.farmOrCrop, v.comment,
     )

@@ -279,8 +279,8 @@ internal fun EditBookingModal(s: AppState, e: Booking) {
         ModalHeader("Reschedule Tour & Guests", "Update Reservation #${e.bookingCode}", Icons.Outlined.Edit, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Field("Farm Destination", e.farmName, {}, enabled = false)
-            // Seeded bookings use "Nov 20, 2026" display dates; editing normalises them to ISO like the original form did.
-            val dateValue = if (e.tourDate.contains("-")) e.tourDate else "2026-11-20"
+            // Seeded bookings use "Nov 20, 2026" display dates; editing normalises them to ISO.
+            val dateValue = parseTourDate(e.tourDate)?.toString() ?: e.tourDate
             DateField("Tour Date", dateValue, { s.editingBooking = e.copy(tourDate = it) })
             val cur = RESCHEDULE_SLOTS.firstOrNull { it.first == e.tourTime } ?: (e.tourTime to e.tourTime)
             Dropdown("Time Slot", (listOf(cur) + RESCHEDULE_SLOTS).distinct(), cur, { it.second }) { s.editingBooking = e.copy(tourTime = it.first) }

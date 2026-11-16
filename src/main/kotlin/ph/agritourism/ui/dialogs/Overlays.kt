@@ -123,11 +123,18 @@ private fun ProfileModal(s: AppState) {
         ModalHeader("Profile Information", onClose = close)
         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Avatar(s.avatar, 96.dp)
-            H2(s.userRole.displayName); Pill("${s.userRole.key} Account".uppercase())
-            InfoTile("Email Address", s.userRole.email, Icons.Outlined.Mail, Modifier.fillMaxWidth())
-            InfoTile("Contact Phone", "+63 917 555 0192", Icons.Outlined.Call, Modifier.fillMaxWidth())
-            InfoTile("Location", "Batangas & Metro Manila, Philippines", Icons.Outlined.Place, Modifier.fillMaxWidth())
-            PrimaryButton("Done", Modifier.fillMaxWidth()) { close(); s.showToast("Profile settings updated!") }
+            var name by remember { mutableStateOf(s.displayName) }
+            var phone by remember { mutableStateOf(s.currentUser?.phone.orEmpty()) }
+            var error by remember { mutableStateOf<String?>(null) }
+            H2(s.displayName); Pill("${s.userRole.key} Account".uppercase())
+            InfoTile("Email Address", s.userEmail, Icons.Outlined.Mail, Modifier.fillMaxWidth())
+            Field("Full Name", name, { name = it }, Modifier.fillMaxWidth())
+            Field("Contact Phone", phone, { phone = it }, Modifier.fillMaxWidth())
+            error?.let { Text(it, color = Palette.Red, fontSize = 12.sp) }
+            PrimaryButton("Save Profile", Modifier.fillMaxWidth()) {
+                error = if (name.trim() == s.displayName && phone.trim() == s.currentUser?.phone.orEmpty()) null else s.updateProfile(name, phone)
+                if (error == null) close()
+            }
         }
     }
 }

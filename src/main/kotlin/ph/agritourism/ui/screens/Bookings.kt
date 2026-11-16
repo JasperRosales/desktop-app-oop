@@ -34,15 +34,16 @@ fun MyBookingsPage(s: AppState) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (farmer) {
-                SecondaryButton("Print Guest Manifest", icon = Icons.Outlined.Download) { Printing.openHtml("guest-manifest.html", Printing.manifestHtml(s.bookings)) }
+                SecondaryButton("Print Guest Manifest", icon = Icons.Outlined.Download) { Printing.openHtml("guest-manifest.html", Printing.manifestHtml(s.visibleBookings)) }
                 PrimaryButton("Add Walk-in Tour", icon = Icons.Filled.Add) { s.isAddBookingModalOpen = true }
             } else PrimaryButton("Book New Tour", icon = Icons.Filled.Add) { s.navigate(Page.FARM_DETAIL) }
         }
     }
     val tabs = listOf("All", "Confirmed", "Pending", "Cancelled")
-    val visible = s.bookings.filter { s.bookingsFilter == "All" || it.status == s.bookingsFilter }
+    val mine = s.visibleBookings
+    val visible = mine.filter { s.bookingsFilter == "All" || it.status == s.bookingsFilter }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        FilterChipRow(tabs, s.bookingsFilter, { t -> "$t (${if (t == "All") s.bookings.size else s.bookings.count { it.status == t }})" }) { s.bookingsFilter = it }
+        FilterChipRow(tabs, s.bookingsFilter, { t -> "$t (${if (t == "All") mine.size else mine.count { it.status == t }})" }) { s.bookingsFilter = it }
         Spacer(Modifier.weight(1f)); Sub("Showing ${visible.size} reservation(s)")
     }
     if (visible.isEmpty()) {
@@ -203,12 +204,13 @@ fun FarmerProductsPage(s: AppState) {
         }
         PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
-    Grid(s.products.filter { it.farmOrigin.contains("Sunnyvale") || it.id <= 6 }, 4) { p ->
+    Grid(s.products.filter { it.farmOrigin.contains("Sunnyvale") }, 4) { p ->
         GlassCard(padding = 0.dp) {
             Box(Modifier.fillMaxWidth().height(150.dp)) {
                 AsyncImage(p.imageUrl, Modifier.fillMaxSize())
                 Pill(p.category, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopStart).padding(10.dp))
-                Pill("In Stock (${p.stock})", Color(0xFFDCFCE7), Color(0xFF166534), Modifier.align(Alignment.TopEnd).padding(10.dp))
+                if (p.stock > 0) Pill("In Stock (${p.stock})", Color(0xFFDCFCE7), Color(0xFF166534), Modifier.align(Alignment.TopEnd).padding(10.dp))
+                else Pill("Sold Out", Color(0xFFFEE2E2), Palette.Red, Modifier.align(Alignment.TopEnd).padding(10.dp))
             }
             Column(Modifier.padding(14.dp)) {
                 Text(p.name, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)

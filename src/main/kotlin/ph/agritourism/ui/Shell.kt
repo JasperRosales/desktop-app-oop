@@ -101,7 +101,7 @@ private fun TopBar(s: AppState) {
                 Avatar(s.avatar, 34.dp)
                 Spacer(Modifier.width(8.dp))
                 Column {
-                    Text(s.userRole.displayName, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Palette.Deep)
+                    Text(s.displayName, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Palette.Deep)
                     Text(s.userRole.subtitle, fontSize = 10.sp, color = Palette.Muted)
                 }
             }
@@ -190,7 +190,7 @@ private fun Sidebar(s: AppState) {
                     if (expanded) {
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(s.userRole.displayName, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Palette.Deep)
+                            Text(s.displayName, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Palette.Deep)
                             Text(s.userRole.subtitle, fontSize = 11.sp, color = Palette.Forest)
                         }
                     }

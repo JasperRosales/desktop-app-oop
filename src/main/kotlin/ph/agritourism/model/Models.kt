@@ -12,6 +12,8 @@ enum class Role(val key: String, val displayName: String, val subtitle: String, 
     }
 }
 
+data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role)
+
 @Serializable
 data class FarmTour(
     val id: Int,
