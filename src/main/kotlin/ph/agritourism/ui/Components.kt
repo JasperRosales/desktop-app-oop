@@ -247,7 +247,7 @@ fun statusColors(status: String): Pair<Color, Color> = when (status) {
     "Confirmed", "Delivered", "Completed" -> Color(0xFFDCFCE7) to Color(0xFF166534)
     "Pending", "Pending Packing" -> Color(0xFFFEF3C7) to Color(0xFF92400E)
     "Cancelled" -> Color(0xFFFEE2E2) to Color(0xFF991B1B)
-    "Dispatched" -> Color(0xFFDBEAFE) to Color(0xFF1E40AF)
+    "Dispatched", "Packed", "Out for Delivery" -> Color(0xFFDBEAFE) to Color(0xFF1E40AF)
     else -> Palette.Mint to Palette.Deep
 }
 

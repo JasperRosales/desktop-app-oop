@@ -5,11 +5,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import ph.agritourism.data.Database
+import ph.agritourism.model.Courier
 import ph.agritourism.model.Role
 import ph.agritourism.ui.AppState
 import ph.agritourism.ui.ImageLoader
 import ph.agritourism.ui.Page
-import ph.agritourism.ui.TOUR_TIME_SLOTS
 import ph.agritourism.model.slotKey
 import java.io.File
 import kotlin.test.*
@@ -29,7 +29,7 @@ class FlowTest {
     /** Logs [st] in as the seeded demo account for [role]. */
     private fun AppState.loginAs(role: Role): AppState {
         if (isLoggedIn) signOut()
-        selectLoginRole(role); loginPassword = Database.DEFAULT_PASSWORD
+        selectLoginRole(role); loginEmail = role.email; loginPassword = Database.DEFAULT_PASSWORD
         assertTrue(login(), "login as $role failed: $loginError")
         return this
     }
@@ -105,7 +105,7 @@ class FlowTest {
         assertEquals(s.tours[1].pricePerPerson * 3, b.totalAmount)
         assertEquals(b, s.selectedBookingForTicket); assertEquals(Page.MY_BOOKINGS, s.activePage); assertFalse(s.isTourModalOpen)
         s.selectedFruit = s.fruitPicking[0]; s.fruitGuests = 2; s.bookSelectedFruit()
-        assertEquals("09:30 AM", s.bookings.first().tourTime)
+        assertEquals(s.slotsFor("orchard", s.fruitPicking[0].id).first(), s.bookings.first().tourTime)
         assertEquals(6, reopen().bookings.size)
     }
 
@@ -169,7 +169,7 @@ class FlowTest {
 
     @Test fun authUsesDatabase() {
         s.signOut()
-        s.selectLoginRole(Role.USER); s.loginPassword = "wrong"
+        s.selectLoginRole(Role.USER); s.loginEmail = Role.USER.email; s.loginPassword = "wrong"
         assertFalse(s.login()); assertFalse(s.isLoggedIn); assertNotNull(s.loginError)
         s.selectLoginRole(Role.FARMER); s.loginEmail = Role.USER.email; s.loginPassword = "password"
         assertFalse(s.login()) // role mismatch
@@ -186,6 +186,66 @@ class FlowTest {
         assertEquals("Ana R. Reyes", reopen().db.findUser("ana@x.ph")!!.fullName)
     }
 
+    @Test fun referenceDataComesFromDatabase() {
+        assertTrue(s.guides.isNotEmpty() && s.couriers.isNotEmpty() && s.timeSlots.isNotEmpty())
+        assertEquals(70.0, s.deliveryFee)
+        db.setSetting("delivery_fee", "95"); s.reloadFromDb(); assertEquals(95.0, s.deliveryFee)
+        assertEquals(s.farmers.map { it.province }.distinct().sorted(), s.provinces)
+        s.loginAs(Role.USER)
+        assertEquals(db.findUser(Role.USER.email)!!.address, s.deliveryAddress)
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        s.addToCart(s.products.first { it.stock > 0 }); s.deliveryAddress = "12 Mabini St, Lipa City"; s.placeOrder()
+        val o = s.farmerOrders.first()
+        assertTrue(s.couriers.any { it.company == o.courierName && it.riderName == o.riderName })
+        assertEquals("12 Mabini St, Lipa City", db.findUser(Role.USER.email)!!.address)
+        // A new booking gets one of the farm's own guides.
+        val t = s.tours.first { it.farmerId != null && s.guidesFor(it.farmerId).isNotEmpty() }
+        s.selectedTour = t; s.tourTime = s.slotsFor("tour", t.id).first(); s.bookSelectedTour()
+        assertTrue(s.bookings.first().assignedGuide in s.guidesFor(t.farmerId))
+    }
+
+    @Test fun farmSetupAndPlatformSettings() {
+        // Farmers manage only their own farm's guides and time slots.
+        s.loginAs(Role.FARMER)
+        val mine = s.myFarmId!!; val other = s.farmers.first { it.id != mine }.id
+        assertNull(s.addGuide(mine, "Ate Liza (Orchard Guide)"))
+        assertTrue(db.guides().any { it.farmerId == mine && it.name == "Ate Liza (Orchard Guide)" })
+        assertNotNull(s.addGuide(mine, "ate liza (orchard guide)")) // duplicate
+        assertNotNull(s.addGuide(other, "Intruder"))
+        val tour = s.tours.first { it.farmerId == mine }
+        assertNull(s.addTimeSlot("tour", tour.id, "6:15 pm - Night Walk"))
+        assertTrue("06:15 PM - Night Walk" in s.slotsFor("tour", tour.id))
+        assertNotNull(s.addTimeSlot("tour", tour.id, "06:15 PM")) // same time
+        assertNotNull(s.addTimeSlot("tour", tour.id, "25:00 AM"))
+        assertNotNull(s.addTimeSlot("tour", s.tours.first { it.farmerId != mine }.id, "06:00 AM"))
+        val slot = s.timeSlots.first { it.label == "06:15 PM - Night Walk" }
+        s.removeTimeSlot(slot); assertFalse("06:15 PM - Night Walk" in s.slotsFor("tour", tour.id))
+        assertNotNull(s.saveSetting("delivery_fee", "1")); assertNotNull(s.addCourier(Courier(0, "X", "Y", "09171234567", "", "")))
+        assertFalse(s.canAccess(Page.PLATFORM_SETTINGS)); assertTrue(s.canAccess(Page.FARM_SETUP))
+        // Admins manage settings and couriers.
+        s.loginAs(Role.ADMIN)
+        assertNotNull(s.saveSetting("delivery_fee", "abc"))
+        assertNull(s.saveSetting("delivery_fee", "85")); assertEquals("85", db.settings()["delivery_fee"])
+        val n = s.couriers.size
+        assertNull(s.addCourier(Courier(0, "FastFarm", "Kuya Ben", "0917 123 4567", "Motorbike", "Tanauan Hub")))
+        assertEquals(n + 1, s.couriers.size)
+        s.removeCourier(s.couriers.last()); assertEquals(n, s.couriers.size)
+    }
+
+    @Test fun checkoutOnlySelectedCartItems() {
+        s.loginAs(Role.USER)
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        val (p1, p2) = s.products.filter { it.stock > 0 }.take(2)
+        s.addToCart(p1); s.addToCart(p2)
+        s.toggleCartItem(p2.id)
+        assertEquals(listOf(p1.id), s.checkoutItems.map { it.product.id })
+        s.deliveryAddress = "Somewhere"; s.placeOrder()
+        assertEquals(listOf(p1.name), s.farmerOrders.first().items.map { it.productName })
+        assertEquals(listOf(p2.id), s.cart.map { it.product.id })
+        assertEquals(listOf(p2.id), db.cart(Role.USER.email).map { it.first })
+        s.selectAllCart(false); s.placeOrder(); assertEquals(1, s.checkoutStep)
+    }
+
     @Test fun orderValidationAndStatusSync() {
         s.loginAs(Role.USER)
         s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
@@ -196,7 +256,11 @@ class FlowTest {
         s.deliveryAddress = "Somewhere"; s.paymentMethod = "Bank Transfer"; s.placeOrder()
         val o = s.farmerOrders.first()
         assertEquals("Paid via Bank Transfer", o.paymentStatus); assertEquals("Pending Packing", o.fulfillmentStatus)
+        // A new order is only "placed"; later steps wait for the farm.
+        assertEquals(listOf(true, false, false, false, false), o.deliverySteps.map { it.completed })
         s.loginAs(Role.FARMER); s.orderStatusUpdate(o.id, "Dispatched")
+        assertEquals(listOf(true, true, true, false, false), s.farmerOrders.first().deliverySteps.map { it.completed })
+        s.orderStatusUpdate(o.id, "Out for Delivery")
         assertTrue(s.farmerOrders.first().deliverySteps.take(4).all { it.completed })
         assertFalse(s.farmerOrders.first().deliverySteps.last().completed)
         s.loginAs(Role.USER); s.confirmOrderReceived(o.id)
@@ -223,6 +287,8 @@ class FlowTest {
     @Test fun roleBasedAccess() {
         // Signed out: only public pages; actions redirect to login.
         assertFalse(s.canAccess(Page.DASHBOARD)); s.navigate(Page.SQL_STUDIO); assertEquals(Page.LOGIN, s.activePage)
+        listOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES).forEach { assertFalse(s.canAccess(it), "guest $it") }
+        s.openCatalogTour(s.tours[0]); assertEquals(Page.LOGIN, s.activePage); assertFalse(s.isTourModalOpen)
         s.bookingAction(102L, "Confirmed"); assertEquals("Pending", s.bookings.first { it.id == 102L }.status)
 
         // Tourist: own data only, no staff actions or admin pages.
@@ -265,6 +331,8 @@ class FlowTest {
 
     @Test fun noDoubleBookings() {
         s.loginAs(Role.USER)
+        val TOUR_TIME_SLOTS = s.slotsFor("tour", s.tours[0].id)
+        assertTrue(TOUR_TIME_SLOTS.size >= 2 && s.slotsFor("tour", s.tours[2].id) == TOUR_TIME_SLOTS)
         s.selectedTour = s.tours[0]; s.tourTime = TOUR_TIME_SLOTS[0]; s.bookSelectedTour()
         val n = s.bookings.size
         // Same tourist, same date + slot (even at a different farm) is rejected.

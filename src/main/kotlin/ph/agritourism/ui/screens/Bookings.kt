@@ -109,7 +109,7 @@ fun MyBookingsPage(s: AppState) {
                     if (req != null) Text("\"$req\"", Modifier.weight(1f), fontSize = 11.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     else Spacer(Modifier.weight(1f))
                     Label("Assigned Guide:")
-                    Dropdown("", listOf("") + BOOKING_LIST_GUIDES, b.assignedGuide ?: "", { it.ifEmpty { "Assign Tour Guide..." } }, Modifier.width(260.dp)) {
+                    Dropdown("", (listOf("") + s.guidesFor(b) + listOfNotNull(b.assignedGuide)).distinct(), b.assignedGuide ?: "", { it.ifEmpty { "Assign Tour Guide..." } }, Modifier.width(260.dp)) {
                         if (it.isNotEmpty()) s.assignGuide(b.id, it)
                     }
                 }
@@ -135,7 +135,7 @@ fun FarmerOrdersPage(s: AppState) {
             Printing.openHtml("packing-slips.html", Printing.orderHtml(s.visibleOrders, "${s.myFarmLabel} · Packing Slips"))
         }
     }
-    val tabs = listOf("All", "Pending Packing", "Dispatched", "Delivered")
+    val tabs = listOf("All", "Pending Packing", "Packed", "Dispatched", "Out for Delivery", "Delivered")
     Row(verticalAlignment = Alignment.CenterVertically) {
         FilterChipRow(tabs, s.ordersFilter, { t -> "$t (${if (t == "All") s.visibleOrders.size else s.visibleOrders.count { it.fulfillmentStatus == t }})" }) { s.ordersFilter = it }
         Spacer(Modifier.weight(1f))
@@ -176,8 +176,8 @@ fun FarmerOrdersPage(s: AppState) {
                     }
                     Spacer(Modifier.height(8.dp))
                     Label("Update Fulfillment Status:")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Pending Packing" to "Packing", "Dispatched" to "Dispatch", "Delivered" to "Delivered").forEach { (st, l) ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ORDER_STATUSES.forEach { (st, l) ->
                             if (o.fulfillmentStatus == st) PrimaryButton(l) { s.orderStatusUpdate(o.id, st) } else SecondaryButton(l) { s.orderStatusUpdate(o.id, st) }
                         }
                     }
@@ -186,8 +186,8 @@ fun FarmerOrdersPage(s: AppState) {
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0FDF4)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("🚚 Courier: ${o.courierName ?: "AgriExpress Direct"} · ${o.riderName ?: "Kuya Jun-Jun Ramos"}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("📍 ${o.currentLocation ?: "In Transit: Approaching delivery destination"}", fontSize = 12.sp)
+                    Text("🚚 Courier: ${listOfNotNull(o.courierName, o.riderName).joinToString(" · ").ifBlank { "Not yet assigned" }}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("📍 ${o.currentLocation ?: "Location not yet reported"}", fontSize = 12.sp)
                 }
                 Column(Modifier.padding(horizontal = 12.dp)) {
                     Text(if (o.isReceivedByUser) "✓ Received by Tourist (Verified)" else "⏱ Tourist Has Not Yet Received", fontSize = 12.sp, fontWeight = FontWeight.Bold,

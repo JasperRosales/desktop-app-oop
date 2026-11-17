@@ -35,7 +35,25 @@ private fun AuthLayout(s: AppState, form: @Composable ColumnScope.() -> Unit) {
             Crossfade(s.currentSlide, animationSpec = tween(900)) { i ->
                 AsyncImage(s.farmers[i].farmBannerUrl, Modifier.fillMaxSize(), contentDescription = s.farmers[i].farmName, fallback = s.images.farmerProfileBanner)
             }
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color.Transparent, Color(0x66000000)))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color.Transparent, Color(0xCC000000)))))
+            // Farmer story for the current slide
+            Crossfade(s.currentSlide, Modifier.align(Alignment.BottomStart).padding(start = 28.dp, end = 28.dp, bottom = 48.dp), animationSpec = tween(600)) { i ->
+                val f = s.farmers[i]
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("FARMER STORY", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFBBF7D0), letterSpacing = 1.5.sp)
+                    Text("“${f.storyQuote}”", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(f.photoUrl, 44.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(f.name, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                            Text("${f.farmName} · ${f.province}", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
             Row(Modifier.align(Alignment.TopStart).padding(20.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.9f)).padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Eco, null, Modifier.size(16.dp), tint = Palette.Forest); Spacer(Modifier.width(6.dp))

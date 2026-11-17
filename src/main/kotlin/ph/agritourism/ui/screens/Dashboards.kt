@@ -109,7 +109,7 @@ fun DataChart(points: List<MonthPoint>, line: Color, fill: Color, modifier: Modi
 fun AdminDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) { H1("Platform Overview"); Sub("Real-time platform metrics, booking trends, and system telemetry") }
-        Pill("● System Healthy · Live", Color(0xFFDCFCE7), Color(0xFF166534))
+        Pill("● Live data from SQLite", Color(0xFFDCFCE7), Color(0xFF166534))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         StatCard("Total Users", money(s.db.userCount()), "Registered accounts", Color(0xFFE0F2FE), Modifier.weight(1f))

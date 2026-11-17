@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ph.agritourism.model.Booking
+import ph.agritourism.model.slotTime
 import ph.agritourism.model.Role
 import ph.agritourism.ui.*
 
@@ -71,7 +72,9 @@ internal fun TourModal(s: AppState) {
             Text("📅 Customize Your Tour Booking", fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DateField("Tour Schedule Date", s.tourDate, { s.tourDate = it }, Modifier.weight(1f))
-                Dropdown("Select Time Slot", TOUR_TIME_SLOTS, s.tourTime, { it }, Modifier.weight(1f)) { s.tourTime = it }
+                val slots = s.slotsFor("tour", t.id)
+                LaunchedEffect(t.id, slots) { if (s.tourTime !in slots) s.tourTime = slots.firstOrNull().orEmpty() }
+                Dropdown("Select Time Slot", slots, s.tourTime, { it.ifBlank { "No time slots available" } }, Modifier.weight(1f)) { s.tourTime = it }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Label("Number of Persons / Guests"); Sub("Family and group passes automatically adjusted") }
@@ -108,7 +111,9 @@ internal fun FruitModal(s: AppState) {
             HorizontalDivider(color = Palette.Border)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DateField("Select Date", s.fruitDate, { s.fruitDate = it }, Modifier.weight(1f))
-                Dropdown("Select Time Slot", FRUIT_TIME_SLOTS, s.fruitTime, { it }, Modifier.weight(1f)) { s.fruitTime = it }
+                val slots = s.slotsFor("orchard", f.id)
+                LaunchedEffect(f.id, slots) { if (s.fruitTime !in slots) s.fruitTime = slots.firstOrNull().orEmpty() }
+                Dropdown("Select Time Slot", slots, s.fruitTime, { it.ifBlank { "No time slots available" } }, Modifier.weight(1f)) { s.fruitTime = it }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Label("Number of Fruit Pickers"); Sub("Includes individual harvesting basket") }
@@ -168,8 +173,8 @@ internal fun BookingDossier(s: AppState, b0: Booking) {
                     Row { Text("Farmer Host Gate Controls", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold); Pill("Status: ${b.attendanceStatus ?: "Pending"}", Color.White) }
                     if (b.attendanceStatus == "Arrived & Checked In") Text("✓ Tourist has arrived & Gate Check-In is recorded! ${b.checkedInAt ?: ""}", color = Color(0xFF166534), fontWeight = FontWeight.Bold)
                     else PrimaryButton("Mark Tourist as Arrived (Gate Check-In)", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
-                    val guide = b.assignedGuide ?: DOSSIER_GUIDES.first()
-                    Dropdown("Assign Guide:", (listOf(guide) + DOSSIER_GUIDES).distinct(), guide, { it }) { s.assignGuide(b.id, it) }
+                    val guide = b.assignedGuide.orEmpty()
+                    Dropdown("Assign Guide:", (listOf(guide) + s.guidesFor(b)).distinct(), guide, { it.ifEmpty { "Choose a guide…" } }) { if (it.isNotEmpty()) s.assignGuide(b.id, it) }
                 }
             }
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, Palette.Border, RoundedCornerShape(14.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -215,8 +220,8 @@ internal fun OrderDossier(s: AppState, id: String) {
             if (o.uploadedReceiptUrl.isNotBlank()) AsyncImage(o.uploadedReceiptUrl, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)), ContentScale.Fit, "Uploaded Receipt")
             else Sub("No payment proof uploaded for this order.")
             Label("Update Order Status:")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Pending Packing" to "Packing", "Dispatched" to "Dispatched", "Delivered" to "Delivered").forEach { (st, l) ->
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ORDER_STATUSES.forEach { (st, l) ->
                     if (o.fulfillmentStatus == st) PrimaryButton(l) { s.orderStatusUpdate(o.id, st) } else SecondaryButton(l) { s.orderStatusUpdate(o.id, st) }
                 }
             }
@@ -236,12 +241,12 @@ internal fun TrackingInspector(s: AppState, id: String) {
         ModalHeader("Logistics & Route Inspection #${o.orderNumber}", "Farmer Courier Tracking & Handover", Icons.Outlined.LocalShipping, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                InfoTile("Courier Carrier & Rider", "${o.riderName ?: "Kuya Jun-Jun Ramos"}\n${o.courierName ?: "AgriExpress Direct Fleet"}\n${o.riderVehicle ?: "Yamaha NMAX · Plate DA 7192"}", modifier = Modifier.weight(1f))
+                InfoTile("Courier Carrier & Rider", listOfNotNull(o.riderName, o.courierName, o.riderVehicle).joinToString("\n").ifBlank { "Courier not yet assigned" }, modifier = Modifier.weight(1f))
                 InfoTile("Tourist Recipient", "${o.customerName}\n${o.customerPhone}\n${o.trackingNumber ?: ""}", modifier = Modifier.weight(1f))
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEFF6FF)).padding(14.dp)) {
-                Label("Live Courier Location:"); Text("🧭 ${o.currentLocation ?: "In Transit: En route to destination"}", fontWeight = FontWeight.Bold)
-                Text("Estimated Arrival: ${o.estimatedArrival ?: "15-20 mins away"}", fontSize = 12.sp)
+                Label("Live Courier Location:"); Text("🧭 ${o.currentLocation ?: "Location not yet reported"}", fontWeight = FontWeight.Bold)
+                Text("Estimated Arrival: ${o.estimatedArrival ?: "Not yet estimated"}", fontSize = 12.sp)
             }
             if (o.isReceivedByUser) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFDCFCE7)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -270,7 +275,7 @@ internal fun TrackingInspector(s: AppState, id: String) {
             Label("Advance Courier Position / Location:")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SecondaryButton("SLEX Corridor (In Transit)") { s.updateDeliveryLocation(o.id, "SLEX Alabang Corridor · En route north", "Dispatched") }
-                SecondaryButton("Nearby Destination (1 km)") { s.updateDeliveryLocation(o.id, "Approaching Destination: Within 1 km radius", "Dispatched") }
+                SecondaryButton("Nearby Destination (1 km)") { s.updateDeliveryLocation(o.id, "Approaching Destination: Within 1 km radius", "Out for Delivery") }
             }
             PrimaryButton("Close Tracking Inspector", Modifier.fillMaxWidth()) { close() }
         }
@@ -287,8 +292,10 @@ internal fun EditBookingModal(s: AppState, e: Booking) {
             // Seeded bookings use "Nov 20, 2026" display dates; editing normalises them to ISO.
             val dateValue = parseTourDate(e.tourDate)?.toString() ?: e.tourDate
             DateField("Tour Date", dateValue, { s.editingBooking = e.copy(tourDate = it) })
-            val cur = RESCHEDULE_SLOTS.firstOrNull { it.first == e.tourTime } ?: (e.tourTime to e.tourTime)
-            Dropdown("Time Slot", (listOf(cur) + RESCHEDULE_SLOTS).distinct(), cur, { it.second }) { s.editingBooking = e.copy(tourTime = it.first) }
+            // Keep the current slot selectable even if the farm has since changed its slots.
+            val slots = s.slotsFor(e)
+            val cur = slots.firstOrNull { slotTime(it) == slotTime(e.tourTime) } ?: e.tourTime
+            Dropdown("Time Slot", (listOf(cur) + slots).distinct(), cur, { it }) { s.editingBooking = e.copy(tourTime = it) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Label("Number of Guests")

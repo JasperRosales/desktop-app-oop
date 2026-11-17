@@ -9,7 +9,7 @@
    "province": "Batangas",
    "yearsExperience": 40,
    "photoUrl": "res:farmers/Juan.png",
-   "farmBannerUrl": "res:images/photo-1500937386664-56d1dfef3854-w1200.jpg",
+   "farmBannerUrl": "res:images/photo-1597848212624-a19eb35e2651-w1000.jpg",
    "storyQuote": "Ang tunay na yaman ng lupa ay hindi lamang sa dami ng ani, kundi sa pag-aalaga sa kalikasan para sa susunod na henerasyon ng kabataang Pilipino.",
    "fullBiography": "Nagsimula si Mang Juan noong 1984 sa 2-ektaryang taniman ng kape at lansones sa paanan ng Mount Maculot. Sa apat na dekadang pagtitiyaga, pinangunahan niya ang paggamit ng vermiculture, rainwater retention canals, at natural bee pollinator sanctuaries. Ngayon, nagbibigay ang Sunnyvale Farm ng regular na kabuhayan sa higit 24 na pamilyang magsasaka at tumatanggap ng mga eco-tourists upang ituro ang tunay na diwa ng Batangueño farming.",
    "farmingPhilosophy": "Regenerative soil stewardship: feed the microorganisms first, and the soil will feed the community abundantly without chemicals.",
@@ -44,10 +44,11 @@
    "generation": "3rd Generation Farmer",
    "hectares": "8.5 Hectares",
    "gallery": [
-    "res:images/photo-1500937386664-56d1dfef3854-w600.jpg",
     "res:images/photo-1597848212624-a19eb35e2651-w600.jpg",
-    "res:images/photo-1546548970-71785318a17b-w600.jpg",
-    "res:images/photo-1587049352846-4a222e784d38-w600.jpg"
+    "res:images/photo-1587049352851-8d4e89133924-w600.jpg",
+    "res:images/carabao_mango.jpg",
+    "res:images/photo-1464226184884-fa280b87c399-w400.jpg",
+    "res:fruit_picking/banana.jpg"
    ]
   },
   {
@@ -93,7 +94,8 @@
     "res:images/photo-1464965911861-746a04b4bca6-w600.jpg",
     "res:images/photo-1622206151226-18ca2c9ab4a1-w600.jpg",
     "res:images/photo-1598170845058-32b9d6a5da37-w600.jpg",
-    "res:images/photo-1510798831971-661eb04b3739-w600.jpg"
+    "res:images/photo-1615485290382-441e4d049cb5-w600.jpg",
+    "res:fruit_picking/grapes.jpg"
    ]
   },
   {
@@ -104,8 +106,8 @@
    "location": "San Juan & Rosario, Batangas",
    "province": "Batangas",
    "yearsExperience": 35,
-   "photoUrl": "res:farmers/Ricardo.png",
-   "farmBannerUrl": "res:images/photo-1592924357228-91a4daadcfea-w1200.jpg",
+   "photoUrl": "res:farmers/Roberto.png",
+   "farmBannerUrl": "res:images/photo-1500382017468-9049fed747ef-w600.jpg",
    "storyQuote": "Ang lupang ipinamana sa atin ng ating mga ninuno ay may sagradong tungkuling pakainin nang malinis at masustansya ang pamilyang Pilipino.",
    "fullBiography": "Si Mang Rigor ay kilala sa buong Katagalugan sa pagpapanatili ng natural na paraan ng pamumunga ng manggang kalabaw nang hindi gumagamit ng calcium carbide o synthetic ripeners. Ang kanyang sakahan ay tahanan din ng mga heirloom na uri ng palay tulad ng Dinorado at Milagrosa. Tumatanggap siya ng mga mag-aaral ng agrikultura upang ituro ang sining ng tree grafting, organic seed storage, at rice field micro-ecosystems.",
    "farmingPhilosophy": "Ancestral inheritance: trees that were planted by grandfathers must be preserved with devotion for great-grandchildren.",
@@ -141,7 +143,10 @@
     "res:images/photo-1592924357228-91a4daadcfea-w600.jpg",
     "res:images/carabao_mango.jpg",
     "res:images/squash_sitaw.jpg",
-    "res:images/photo-1528825871115-3581a5387919-w600.jpg"
+    "res:images/photo-1528825871115-3581a5387919-w600.jpg",
+    "res:fruit_picking/kasoy.jpg",
+    "res:fruit_picking/pakwan.jpg",
+    "res:fruit_picking/kamoteng_kahoy.jpg"
    ]
   },
   {
@@ -152,7 +157,7 @@
    "location": "Malaybalay & Manolo Fortich, Bukidnon",
    "province": "Bukidnon",
    "yearsExperience": 32,
-   "photoUrl": "res:farmers/Roberto.png",
+   "photoUrl": "res:farmers/Ricardo.png",
    "farmBannerUrl": "res:images/photo-1550258987-190a2d41a8ba-w1200.jpg",
    "storyQuote": "Ang bulkanikong lupa ng Bukidnon ay biyayang dapat pangalagaan. Sa bawat pinya at dragonfruit na inyong kinakain, sinusuportahan ninyo ang aming katutubong watershed.",
    "fullBiography": "Lumaki si Tatay Ramon sa malawak na kapatagan ng Bukidnon kung saan nagtatagpo ang malamig na simoy ng bundok at matabang lupang bulkaniko. Nang makita ang pinsala ng soil erosion sa mga kalapit na bayan, sinimulan niya ang vetiver contour hedgerows at diversified agroforestry. Ngayon, ang kanyang plantasyon ay dinadayo ng mga turista na nagnanais maranasan ang pamimitas ng pinakamatamis na golden queen pineapples at pulang dragonfruit.",
@@ -185,9 +190,11 @@
    "hectares": "15 Hectares",
    "gallery": [
     "res:images/photo-1550258987-190a2d41a8ba-w600.jpg",
-    "res:images/photo-1587049352846-4a222e784d38-w600.jpg",
-    "res:images/carabao_mango.jpg",
-    "res:images/photo-1500382017468-9049fed747ef-w600.jpg"
+    "res:fruit_picking/dragon_fruit.jpg",
+    "res:images/photo-1587049352851-8d4e89133924-w600.jpg",
+    "res:images/photo-1473448912268-2022ce9509d8-w400.jpg",
+    "res:fruit_picking/tamarind.jpg",
+    "res:fruit_picking/balingbing.jpg"
    ]
   },
   {
@@ -231,9 +238,10 @@
    "hectares": "6.0 Hectares",
    "gallery": [
     "res:images/tablea.jpg",
-    "res:images/photo-1540420773420-3366772f4999-w600.jpg",
+    "res:images/cacao_farm.jpg",
     "res:images/mangosteen.jpg",
-    "res:images/photo-1587049352846-4a222e784d38-w600.jpg"
+    "res:images/photo-1559056199-641a0ac8b55e-w600.jpg",
+    "res:fruit_picking/kamoteng_banging.jpg"
    ]
   }
  ],
@@ -259,15 +267,15 @@
     "Cookout",
     "Animal Feeding"
    ],
-   "imageUrl": "res:images/photo-1546548970-71785318a17b-w1000.jpg",
+   "imageUrl": "res:images/photo-1589923188900-85dae523342b-w1000.jpg",
    "description": "Tucked inside the fertile volcanic hills of Bauan, Sunnyvale Farm is a multi-generational eco-estate famous for ancient Lanzones, Rambutan, and Carabao mango groves. Visitors embark on peaceful shaded trails through 40-year-old fruit canopies, taste fresh coconut water harvested right before your eyes, and savor a traditional Batangueño farm lunch cooked over open wood fire.",
    "highlightTag": "Trending Farm Tour",
    "farmerName": "Mang Juan Dela Cruz",
    "thumbnails": [
-    "res:images/photo-1464965911861-746a04b4bca6-w400.jpg",
-    "res:images/photo-1540420773420-3366772f4999-w400.jpg",
-    "res:images/photo-1500937386664-56d1dfef3854-w400.jpg",
-    "res:images/photo-1510798831971-661eb04b3739-w400.jpg"
+    "res:images/photo-1464226184884-fa280b87c399-w400.jpg",
+    "res:images/photo-1601493700631-2b16ec4b4716-w400.jpg",
+    "res:fruit_picking/banana.jpg",
+    "res:images/photo-1500076656116-558758c991c1-w400.jpg"
    ]
   },
   {
@@ -297,9 +305,9 @@
    "farmerName": "Aling Rosa Mendoza",
    "thumbnails": [
     "res:images/photo-1597848212624-a19eb35e2651-w400.jpg",
-    "res:images/photo-1587049352846-4a222e784d38-w400.jpg",
-    "res:images/photo-1530595467537-0b5996c41f2d-w400.jpg",
-    "res:images/photo-1500382017468-9049fed747ef-w400.jpg"
+    "res:images/photo-1587049352851-8d4e89133924-w600.jpg",
+    "res:images/photo-1500382017468-9049fed747ef-w400.jpg",
+    "res:images/photo-1500937386664-56d1dfef3854-w400.jpg"
    ]
   },
   {
@@ -323,15 +331,15 @@
     "Sunset Lounge",
     "Dragonfruit Trek"
    ],
-   "imageUrl": "res:images/photo-1510798831971-661eb04b3739-w1000.jpg",
+   "imageUrl": "res:images/cacao_farm.jpg",
    "description": "Perched high along the cool ridges overlooking Taal Lake and volcanic hills, Laurel View Farm combines agro-forestry with artisanal chocolate craft. Walk through shaded cacao trees, harvest purple cacao pods, roast fermented beans in traditional copper skillets, and press your own organic tablea chocolate cake.",
    "highlightTag": "Scenic Overlook",
    "farmerName": "Elena Bautista",
    "thumbnails": [
-    "res:images/photo-1510798831971-661eb04b3739-w400.jpg",
+    "res:images/cacao_farm.jpg",
+    "res:images/photo-1470071459604-3b5ec3a7fe05-w400.jpg",
     "res:images/photo-1544965850-6f8a66788f9b-w400.jpg",
-    "res:images/photo-1514432324607-a09d9b4aefdd-w400.jpg",
-    "res:images/photo-1464226184884-fa280b87c399-w400.jpg"
+    "res:images/tablea.jpg"
    ]
   },
   {
@@ -354,15 +362,15 @@
     "Weaving Demo",
     "Native Hut Visit"
    ],
-   "imageUrl": "res:images/photo-1518509562904-e7ef99cdcc86-w1000.jpg",
+   "imageUrl": "res:images/photo-1500937386664-56d1dfef3854-w1000.jpg",
    "description": "A monumental cultural expedition along 2,000-year-old stone terrace walls hand-built by ancient Cordillera tribes. Guided by native elder farmers, trekkers step along cascading water canals, learn the sacred cultivation rituals of heirloom Tinawon red rice, and witness traditional back-strap loom weaving.",
    "highlightTag": "UNESCO Heritage",
    "farmerName": "Lakay Dumangeng",
    "thumbnails": [
-    "res:images/photo-1518509562904-e7ef99cdcc86-w400.jpg",
+    "res:images/photo-1470071459604-3b5ec3a7fe05-w400.jpg",
     "res:images/photo-1506744038136-46273834b3fb-w400.jpg",
     "res:images/photo-1501785888041-af3ef285b470-w400.jpg",
-    "res:images/photo-1470071459604-3b5ec3a7fe05-w400.jpg"
+    "res:images/photo-1500382017468-9049fed747ef-w400.jpg"
    ]
   },
   {
@@ -386,15 +394,15 @@
     "Freshwater Fish Feeding",
     "Citrus Gathering"
    ],
-   "imageUrl": "res:images/photo-1500076656116-558758c991c1-w1000.jpg",
+   "imageUrl": "res:images/photo-1473448912268-2022ce9509d8-w400.jpg",
    "description": "Nestled along natural freshwater springs, this tranquil agro-park features floating bamboo bridges, lush riverbanks, and fragrant citrus canopies. Hop aboard bamboo balsa rafts, hand-feed native river carps, harvest fragrant Calamansi and Dalandan, and relax under giant bamboo clusters.",
    "highlightTag": "River & Waters",
    "farmerName": "Mang Nestor Ramos",
    "thumbnails": [
-    "res:images/photo-1500076656116-558758c991c1-w400.jpg",
-    "res:images/photo-1470246973918-29a93221c455-w400.jpg",
+    "res:images/photo-1473448912268-2022ce9509d8-w400.jpg",
     "res:images/photo-1448375240586-882707db888b-w400.jpg",
-    "res:images/photo-1473448912268-2022ce9509d8-w400.jpg"
+    "res:images/photo-1501785888041-af3ef285b470-w400.jpg",
+    "res:images/photo-1544965850-6f8a66788f9b-w400.jpg"
    ]
   },
   {
@@ -418,15 +426,15 @@
     "Medicinal Herb Trail",
     "Farm-to-Bowl Salad Making"
    ],
-   "imageUrl": "res:images/photo-1500937386664-56d1dfef3854-w1000.jpg",
+   "imageUrl": "res:images/photo-1540420773420-3366772f4999-w600.jpg",
    "description": "An oasis of wellness and agro-ecology at the foot of Mount Arayat. Explore certified organic plots cultivating lemongrass, blue ternatea, gotu kola, and stevia. Hand-pick fresh herbs to blend your own artisan wellness tisanes and enjoy freshly harvested farm salads.",
    "highlightTag": "Herbal & Wellness",
    "farmerName": "Nanay Corazon Cruz",
    "thumbnails": [
-    "res:images/photo-1500937386664-56d1dfef3854-w400.jpg",
-    "res:images/photo-1540420773420-3366772f4999-w400.jpg",
+    "res:images/photo-1596040033229-a9821ebd058d-w400.jpg",
     "res:images/photo-1464226184884-fa280b87c399-w400.jpg",
-    "res:images/photo-1500382017468-9049fed747ef-w400.jpg"
+    "res:images/photo-1540420773420-3366772f4999-w400.jpg",
+    "res:images/photo-1598170845058-32b9d6a5da37-w600.jpg"
    ]
   }
  ],
@@ -448,8 +456,8 @@
    "thumbnails": [
     "res:images/photo-1611080626919-7cf5a9dbab5b-w400.jpg",
     "res:images/photo-1582979512210-99b6a53386f9-w400.jpg",
-    "res:fruit_picking/balingbing.jpg",
-    "res:fruit_picking/tamarind.jpg"
+    "res:images/photo-1587735243615-c03f25aaff15-w400.jpg",
+    "res:images/photo-1546548970-71785318a17b-w600.jpg"
    ]
   },
   {
@@ -469,8 +477,7 @@
    "thumbnails": [
     "res:fruit_picking/strawberry.jpg",
     "res:images/photo-1518635017498-87f514b751ba-w400.jpg",
-    "res:images/photo-1543158266-0066955047b1-w400.jpg",
-    "res:fruit_picking/kamoteng_banging.jpg"
+    "res:images/photo-1464965911861-746a04b4bca6-w400.jpg"
    ]
   },
   {
@@ -490,8 +497,8 @@
    "thumbnails": [
     "res:images/mango_tree.jpg",
     "res:images/photo-1601493700631-2b16ec4b4716-w400.jpg",
-    "res:fruit_picking/kasoy.jpg",
-    "res:fruit_picking/banana.jpg"
+    "res:images/photo-1553279768-865429fa0078-w600.jpg",
+    "res:images/carabao_mango.jpg"
    ]
   },
   {
@@ -510,9 +517,7 @@
    "seasonAvailability": "Peak Season: June - November",
    "thumbnails": [
     "res:fruit_picking/dragon_fruit.jpg",
-    "res:images/dragon_fruit_plantation.jpg",
-    "res:images/photo-1550258987-190a2d41a8ba-w400.jpg",
-    "res:images/photo-1587735243615-c03f25aaff15-w400.jpg"
+    "res:images/dragon_fruit_plantation.jpg"
    ]
   },
   {
@@ -531,9 +536,7 @@
    "seasonAvailability": "Peak Season: August - November",
    "thumbnails": [
     "res:fruit_picking/rambutan.jpg",
-    "res:fruit_picking/lanzones.jpg",
-    "res:images/photo-1596040033229-a9821ebd058d-w400.jpg",
-    "res:images/photo-1540420773420-3366772f4999-w400.jpg"
+    "res:fruit_picking/lanzones.jpg"
    ]
   },
   {
@@ -551,10 +554,8 @@
    "description": "Experience the lush upland groves of Silang, Cavite. Pluck fragrant ripe Red Lady papayas and sweet pink guavas directly from gently sloping garden rows, accompanied by fresh fruit slices served with native chili-salt seasoning.",
    "seasonAvailability": "Peak Season: Year-Round",
    "thumbnails": [
-    "res:images/photo-1617112848923-cc2234396a8d-w400.jpg",
-    "res:fruit_picking/pakwan.jpg",
-    "res:fruit_picking/grapes.jpg",
-    "res:fruit_picking/kamoteng_kahoy.jpg"
+    "res:images/papaya_tree.jpg",
+    "res:images/photo-1617112848923-cc2234396a8d-w400.jpg"
    ]
   }
  ],
@@ -569,7 +570,7 @@
    "stock": 35,
    "rating": 4.8,
    "reviewsCount": 22,
-   "imageUrl": "res:images/photo-1598170845058-32b9d6a5da37-w600.jpg",
+   "imageUrl": "res:images/photo-1464226184884-fa280b87c399-w400.jpg",
    "description": "Freshly harvested organic bitter gourd rich in natural charantin and iron. Crisp, firm, and pesticide-free from sunny Batangas fields.",
    "farmOrigin": "Sunnyvale Farm (Batangas)"
   },
@@ -639,7 +640,7 @@
    "stock": 55,
    "rating": 4.8,
    "reviewsCount": 27,
-   "imageUrl": "res:images/photo-1615485290382-441e4d049cb5-w600.jpg",
+   "imageUrl": "res:images/photo-1613881553903-4543f5f2cac9-w600.jpg",
    "description": "Glossy purple native eggplants with tender skin and sweet flesh. Charcoal-grill ready for Tortang Talong.",
    "farmOrigin": "Sunnyvale Farm (Batangas)"
   },
@@ -681,7 +682,7 @@
    "stock": 30,
    "rating": 5.0,
    "reviewsCount": 52,
-   "imageUrl": "res:images/photo-1587049352846-4a222e784d38-w600.jpg",
+   "imageUrl": "res:images/photo-1587049352851-8d4e89133924-w600.jpg",
    "description": "100% pure raw honeycomb nectar harvested by indigenous gatherers from flowering forest canopies.",
    "farmOrigin": "Golden Sunflower Sanctuary (San Jose)"
   },
@@ -765,7 +766,7 @@
    "stock": 35,
    "rating": 4.9,
    "reviewsCount": 39,
-   "imageUrl": "res:images/photo-1527324688151-0e627063f2b1-w600.jpg",
+   "imageUrl": "res:fruit_picking/dragon_fruit.jpg",
    "description": "Vibrant magenta-fleshed dragonfruit packed with antioxidants, fiber, and crisp refreshing sweetness.",
    "farmOrigin": "Bukidnon Highlands Eco-Orchard (Bukidnon)"
   },
@@ -1188,7 +1189,7 @@
  ],
  "config": {
   "globalFarmBackground": "res:images/photo-1500937386664-56d1dfef3854-w2560.jpg",
-  "sunnyvaleTourBanner": "res:images/photo-1546548970-71785318a17b-w1200.jpg",
+  "sunnyvaleTourBanner": "res:images/photo-1589923188900-85dae523342b-w1000.jpg",
   "fruitPickingBanner": "res:images/photo-1611080626919-7cf5a9dbab5b-w1200.jpg",
   "farmLifeBannerPhoto": "res:images/photo-1615811361523-6bd03d7748e7-w1600.jpg",
   "mangRigorPhoto": "res:images/photo-1589923188900-85dae523342b-w1000.jpg",
@@ -1203,7 +1204,356 @@
   "presetTomatoImage": "res:images/photo-1592924357228-91a4daadcfea-w600.jpg",
   "presetPapayaImage": "res:images/photo-1617112848923-cc2234396a8d-w600.jpg",
   "presetStrawberryImage": "res:images/photo-1464965911861-746a04b4bca6-w600.jpg",
-  "presetHoneyImage": "res:images/photo-1587049352846-4a222e784d38-w600.jpg",
-  "presetEggplantImage": "res:images/photo-1615485290382-441e4d049cb5-w600.jpg"
+  "presetHoneyImage": "res:images/photo-1587049352851-8d4e89133924-w600.jpg",
+  "presetEggplantImage": "res:images/photo-1613881553903-4543f5f2cac9-w600.jpg"
+ },
+ "users": [
+  {
+   "fullName": "Maria Santos",
+   "email": "maria.santos@gmail.com",
+   "phone": "+63 917 555 0192",
+   "role": "user",
+   "address": "Unit 402 Greenbelt Residences, Legazpi St, Makati City"
+  },
+  {
+   "fullName": "Juan Dela Cruz",
+   "email": "juan.delacruz@sunnyvalefarm.ph",
+   "phone": "+63 918 220 4471",
+   "role": "farmer",
+   "address": "Sunnyvale Farm, Bauan, Batangas",
+   "farmerId": 1
+  },
+  {
+   "fullName": "Administrator",
+   "email": "admin@agritourism.ph",
+   "phone": "+63 2 8555 0100",
+   "role": "admin",
+   "address": "AgriTourism Philippines Office, Lipa City, Batangas"
+  }
+ ],
+ "guides": [
+  {
+   "id": 1,
+   "farmerId": 1,
+   "name": "Ate Rosa (Master Beekeeper)"
+  },
+  {
+   "id": 2,
+   "farmerId": 1,
+   "name": "Ramon (Bee & Honey Specialist)"
+  },
+  {
+   "id": 3,
+   "farmerId": 2,
+   "name": "Kuya Dennis (Senior Pomologist)"
+  },
+  {
+   "id": 4,
+   "farmerId": 2,
+   "name": "Ate Luisa (Organic Trail Guide)"
+  },
+  {
+   "id": 5,
+   "farmerId": 3,
+   "name": "Mang Rigor (Heritage Agro Guide)"
+  },
+  {
+   "id": 6,
+   "farmerId": 3,
+   "name": "Mang Ben (Orchard Elder)"
+  },
+  {
+   "id": 7,
+   "farmerId": 4,
+   "name": "Kuya Elmer (Trail Captain)"
+  },
+  {
+   "id": 8,
+   "farmerId": 4,
+   "name": "Kuya Noel (Master Horticulturist)"
+  },
+  {
+   "id": 9,
+   "farmerId": 5,
+   "name": "Ka Doris (Cacao Agroforest Guide)"
+  }
+ ],
+ "couriers": [
+  {
+   "id": 1,
+   "company": "AgriExpress Direct Logistics",
+   "riderName": "Kuya Jun-Jun Ramos",
+   "riderPhone": "+63 920 112 3456",
+   "vehicle": "Yamaha NMAX (Insulated Box) · Plate DA 7192",
+   "hub": "Lipa Express Logistics Center"
+  },
+  {
+   "id": 2,
+   "company": "FarmLink Couriers",
+   "riderName": "Kuya Arnel Cruz",
+   "riderPhone": "+63 917 448 2210",
+   "vehicle": "Honda Click 125 (Cooler Box) · Plate NBC 4471",
+   "hub": "Calamba Farm Hub"
+  },
+  {
+   "id": 3,
+   "company": "Highland Fresh Movers",
+   "riderName": "Manong Celso Bautista",
+   "riderPhone": "+63 908 551 7720",
+   "vehicle": "Suzuki Multicab (Chiller) · Plate ABK 2035",
+   "hub": "La Trinidad Trading Post"
+  }
+ ],
+ "timeSlots": [
+  {
+   "activityType": "tour",
+   "activityId": 1,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 1,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 1,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 1,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 2,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 2,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 2,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 2,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 3,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 3,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 3,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 3,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 4,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 4,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 4,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 4,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 5,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 5,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 5,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 5,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 6,
+   "label": "08:00 AM - Morning Agro-Walk"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 6,
+   "label": "10:30 AM - Canopy & Cacao Trail"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 6,
+   "label": "02:00 PM - Afternoon Farm Experience"
+  },
+  {
+   "activityType": "tour",
+   "activityId": 6,
+   "label": "04:00 PM - Sunset Overlook"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 1,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 1,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 1,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 1,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 2,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 2,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 2,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 2,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 3,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 3,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 3,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 3,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 4,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 4,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 4,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 4,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 5,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 5,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 5,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 5,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 6,
+   "label": "07:30 AM - Cool Morning Orchard Harvest"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 6,
+   "label": "09:30 AM - Prime Picking Session"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 6,
+   "label": "02:30 PM - Afternoon Family Picking"
+  },
+  {
+   "activityType": "orchard",
+   "activityId": 6,
+   "label": "04:00 PM - Golden Hour Farm Harvest"
+  }
+ ],
+ "settings": {
+  "delivery_fee": "70",
+  "delivery_eta": "Within 1-2 days",
+  "product_categories": "Vegetables,Fruits,Others",
+  "gcash_merchant_name": "AgriTourism Philippines Co.",
+  "gcash_number": "+63 917 890 1234",
+  "bank_name": "BDO Unibank (Batangas City Branch)",
+  "bank_account_name": "AgriTourism Network PH Inc.",
+  "bank_account_number": "0045-8912-3401"
  }
 }

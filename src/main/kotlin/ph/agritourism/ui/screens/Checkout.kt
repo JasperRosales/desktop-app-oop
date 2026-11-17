@@ -71,13 +71,21 @@ private fun CartStep(s: AppState) {
         }
         return
     }
+    val picked = s.checkoutItems
     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         Column(Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { s.selectAllCart(picked.size != s.cart.size) }.padding(end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(picked.size == s.cart.size, { s.selectAllCart(it) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Forest))
+                Text("Select all (${picked.size} of ${s.cart.size} selected)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
             s.cart.forEach { item ->
                 val p = item.product
                 val atMax = item.quantity >= p.stock
+                val selected = p.id !in s.cartUnselected
                 GlassCard(padding = 14.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(selected, { s.toggleCartItem(p.id) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Forest))
+                        Spacer(Modifier.width(6.dp))
                         AsyncImage(p.imageUrl, Modifier.size(72.dp).clip(RoundedCornerShape(14.dp)))
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
@@ -105,12 +113,13 @@ private fun CartStep(s: AppState) {
         GlassCard(Modifier.weight(1f)) {
             H2("Order Summary")
             Spacer(Modifier.height(12.dp))
-            SummaryRow("Subtotal", "$PESO${money(s.cartSubtotal)}")
-            SummaryRow("Delivery Fee (Refrigerated Van)", "$PESO${money(DELIVERY_FEE)}")
+            SummaryRow("Subtotal (${picked.sumOf { it.quantity }} item(s))", "$PESO${money(s.cartSubtotal)}")
+            SummaryRow("Delivery Fee (Refrigerated Van)", "$PESO${money(if (picked.isEmpty()) 0.0 else s.deliveryFee)}")
             HorizontalDivider(Modifier.padding(vertical = 10.dp), color = Palette.Border)
             SummaryRow("Total", "$PESO${money(s.cartTotal)}", true)
             Spacer(Modifier.height(16.dp))
-            PrimaryButton("Proceed to Delivery Details →", Modifier.fillMaxWidth()) { s.checkoutStep = 2 }
+            if (picked.isEmpty()) { Sub("Tick the items you want to buy."); Spacer(Modifier.height(8.dp)) }
+            PrimaryButton("Proceed to Delivery Details →", Modifier.fillMaxWidth(), enabled = picked.isNotEmpty()) { s.checkoutStep = 2 }
         }
     }
 }
@@ -151,17 +160,17 @@ private fun PaymentStep(s: AppState) {
                     AsyncImage(s.images.gcashQrMockup, Modifier.size(130.dp).clip(RoundedCornerShape(12.dp)), contentDescription = "GCash QR Code")
                     Spacer(Modifier.width(16.dp))
                     Column {
-                        Text("GCash Official Merchant Account", fontWeight = FontWeight.ExtraBold)
-                        Text("Merchant Name: AgriTourism Philippines Co.", fontSize = 13.sp)
-                        Text("Mobile: +63 917 890 1234", fontSize = 13.sp)
+                        Text("GCash Merchant Account", fontWeight = FontWeight.ExtraBold)
+                        Text("Merchant Name: ${s.setting("gcash_merchant_name")}", fontSize = 13.sp)
+                        Text("Mobile: ${s.setting("gcash_number")}", fontSize = 13.sp)
                         Text("Scan QR or enter mobile number. Amount: $PESO${money(s.cartTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Palette.Forest)
                     }
                 }
                 "Bank Transfer" -> Column {
                     Text("Bank Transfer Account Details", fontWeight = FontWeight.ExtraBold)
-                    Text("Bank: BDO Unibank (Batangas City Branch)", fontSize = 13.sp)
-                    Text("Account Name: AgriTourism Network PH Inc.", fontSize = 13.sp)
-                    Text("Account Number: 0045-8912-3401", fontSize = 13.sp)
+                    Text("Bank: ${s.setting("bank_name")}", fontSize = 13.sp)
+                    Text("Account Name: ${s.setting("bank_account_name")}", fontSize = 13.sp)
+                    Text("Account Number: ${s.setting("bank_account_number")}", fontSize = 13.sp)
                 }
                 else -> Column {
                     Text("Cash on Delivery (COD) Selected", fontWeight = FontWeight.ExtraBold)
@@ -208,7 +217,7 @@ fun OrderTrackingPage(s: AppState) {
         Column(Modifier.weight(1f)) {
             Pill("Real-Time Farm Logistics Tracker")
             Spacer(Modifier.height(6.dp)); H1("Delivery Tracking")
-            Sub("Monitor the live route of your fresh organic farm harvest directly from Batangas to your doorstep.")
+            Sub("Monitor the live route of your fresh organic farm harvest directly from our partner farms to your doorstep.")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SecondaryButton("Print Receipt", icon = Icons.Outlined.Print) { s.currentTrackedOrder()?.let(s::printOrderReceipt) }
@@ -230,36 +239,44 @@ fun OrderTrackingPage(s: AppState) {
         }
     }
     val o = s.currentTrackedOrder() ?: return
+    // Highest delivery step reached (0 = placed … 3 = out for delivery, 4 = received by the tourist).
+    val reached = o.deliverySteps.indexOfLast { it.completed }.coerceAtLeast(0)
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("#${o.orderNumber}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
                     Spacer(Modifier.width(10.dp)); Sub(o.orderDate); Spacer(Modifier.width(10.dp))
-                    Pill(if (o.fulfillmentStatus == "Delivered") "Delivered" else "● Live Tracking Active", Color(0xFFDCFCE7), Color(0xFF166534))
+                    StatusPill(if (o.isReceivedByUser) "Delivered" else o.fulfillmentStatus)
                 }
                 Text("📍 Destination: ${o.customerAddress}", fontSize = 13.sp, color = Color(0xFF334155))
             }
             Column(Modifier.clip(RoundedCornerShape(14.dp)).background(if (o.isReceivedByUser) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)).padding(12.dp)) {
-                Text(if (o.isReceivedByUser) "Package Confirmed Received" else "In Transit to Your Doorstep", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
-                Text(if (o.isReceivedByUser) (o.receivedAt ?: "Handed over in good condition") else (o.estimatedArrival ?: "ETA ~11:30 AM"), fontSize = 11.sp)
+                Text(when {
+                    o.isReceivedByUser -> "Package Confirmed Received"
+                    reached >= 3 -> "Out for Delivery"
+                    reached == 2 -> "Picked Up by Courier"
+                    reached == 1 -> "Packed at the Farm"
+                    else -> "Waiting for the Farm to Pack"
+                }, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                Text(if (o.isReceivedByUser) (o.receivedAt ?: "Handed over in good condition") else (o.estimatedArrival ?: "ETA not yet available"), fontSize = 11.sp)
             }
         }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF8FAFC)).padding(14.dp)) {
-                Row { Label("Assigned Courier & Rider"); Spacer(Modifier.weight(1f)); Text(o.courierName ?: "AgriExpress Direct", fontSize = 11.sp, color = Palette.Forest) }
+                Row { Label("Assigned Courier & Rider"); Spacer(Modifier.weight(1f)); Text(o.courierName ?: "Not yet assigned", fontSize = 11.sp, color = Palette.Forest) }
                 Spacer(Modifier.height(6.dp))
-                Text("🚚 ${o.riderName ?: "Kuya Jun-Jun Ramos"}", fontWeight = FontWeight.ExtraBold)
-                Sub(o.riderVehicle ?: "Yamaha NMAX (Insulated Box) · Plate DA 7192")
-                Row(verticalAlignment = Alignment.CenterVertically) { Text("📞 ${o.riderPhone ?: "+63 920 112 3456"}", fontSize = 12.sp); Spacer(Modifier.width(8.dp)); Pill("Verified Carrier") }
+                Text("🚚 ${o.riderName ?: "Rider not yet assigned"}", fontWeight = FontWeight.ExtraBold)
+                o.riderVehicle?.let { Sub(it) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Text("📞 ${o.riderPhone ?: "—"}", fontSize = 12.sp); Spacer(Modifier.width(8.dp)); Pill("Verified Carrier") }
             }
             Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF0FDF4)).padding(14.dp)) {
                 Label("Current Courier Coordinates")
                 Spacer(Modifier.height(6.dp))
-                Text("🧭 ${o.currentLocation ?: "In Transit: Approaching delivery destination"}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text("Tracking No: ${o.trackingNumber ?: "AGX-2026-88194"}", fontSize = 12.sp)
-                Text("Estimated Arrival: ${o.estimatedArrival ?: "15-20 mins away"}", fontSize = 12.sp, color = Palette.Forest)
+                Text("🧭 ${o.currentLocation ?: "Location not yet reported"}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Tracking No: ${o.trackingNumber ?: "—"}", fontSize = 12.sp)
+                Text("Estimated Arrival: ${o.estimatedArrival ?: "Not yet estimated"}", fontSize = 12.sp, color = Palette.Forest)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -268,16 +285,16 @@ fun OrderTrackingPage(s: AppState) {
         }
         Spacer(Modifier.height(10.dp))
         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE2E8F0))) {
-            Box(Modifier.fillMaxWidth(if (o.fulfillmentStatus == "Delivered") 1f else 0.75f).fillMaxHeight().background(Palette.Forest))
+            Box(Modifier.fillMaxWidth(if (o.isReceivedByUser) 1f else reached / o.deliverySteps.lastIndex.coerceAtLeast(1).toFloat()).fillMaxHeight().background(Palette.Forest))
         }
         Spacer(Modifier.height(8.dp))
         Row {
-            listOf("Farm Packed" to "Lipa, Batangas", "STAR / SLEX" to "Dispatched", "Out for Delivery" to "En Route",
+            listOf("Farm Packed" to "At the farm", "Picked Up" to "With courier", "Out for Delivery" to "En Route",
                 "Customer Received" to if (o.isReceivedByUser) "Confirmed" else "Pending").forEachIndexed { i, (t, sub) ->
-                val done = i < 3 || o.isReceivedByUser
+                val done = if (i == 3) o.isReceivedByUser else reached >= i + 1
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(28.dp).clip(CircleShape).background(if (done) Palette.Forest else Color(0xFFE2E8F0)), contentAlignment = Alignment.Center) {
-                        if (done) Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = Color.White) else Text("4", fontWeight = FontWeight.Bold)
+                        if (done) Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = Color.White) else Text("${i + 1}", fontWeight = FontWeight.Bold)
                     }
                     Text(t, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(sub, fontSize = 10.sp, color = Palette.Muted)
                 }
@@ -310,7 +327,8 @@ fun OrderTrackingPage(s: AppState) {
                     Text("Have you received your fresh produce?", fontWeight = FontWeight.ExtraBold)
                     Sub("Once the courier delivers your package, click the button to verify receipt and notify the farmer.")
                 }
-                if (s.ownsOrder(o)) PrimaryButton("Confirm Order Received", icon = Icons.Filled.Check) { s.confirmOrderReceived(o.id) }
+                if (s.ownsOrder(o) && reached >= 3) PrimaryButton("Confirm Order Received", icon = Icons.Filled.Check) { s.confirmOrderReceived(o.id) }
+                else if (s.ownsOrder(o)) Pill("Available once out for delivery", Color(0xFFFEF3C7), Color(0xFF92400E))
             }
         }
     }

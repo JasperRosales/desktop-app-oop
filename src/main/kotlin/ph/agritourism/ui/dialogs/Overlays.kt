@@ -176,7 +176,7 @@ private fun AddProductModal(s: AppState) {
             }
             Field("Product Name", s.newProductName, { s.newProductName = it }, placeholder = "e.g. Fresh Carabao Mangoes")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Dropdown("Category", listOf("Vegetables", "Fruits", "Others"), s.newProductCategory, { it }, Modifier.weight(1f)) { s.newProductCategory = it }
+                Dropdown("Category", s.productCategories, s.newProductCategory, { it }, Modifier.weight(1f)) { s.newProductCategory = it }
                 Field("Price (₱)", s.newProductPrice, { v -> s.newProductPrice = v.filter { it.isDigit() || it == '.' } }, Modifier.weight(1f), "e.g. 120", number = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -202,6 +202,8 @@ private fun AddBookingModal(s: AppState) {
         return
     }
     val tour = s.myTours.firstOrNull { it.name == s.newBookingActivity } ?: s.myTours.first()
+    val slots = s.slotsFor("tour", tour.id)
+    LaunchedEffect(tour.id, slots) { if (s.newBookingTime !in slots) s.newBookingTime = slots.firstOrNull().orEmpty() }
     Modal(close, 600.dp) {
         ModalHeader("Create Tour Booking", "Farmer manual booking for walk-in tourists or phone reservations", Icons.Outlined.EventAvailable, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -212,7 +214,7 @@ private fun AddBookingModal(s: AppState) {
             Dropdown("Select Tour", s.myTours.map { it.name }, tour.name, { n -> "$n (₱${s.myTours.first { it.name == n }.pricePerPerson}/pax)" }) { s.newBookingActivity = it }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DateField("Tour Schedule Date", s.newBookingDate, { s.newBookingDate = it }, Modifier.weight(1f))
-                Dropdown("Time Slot", TOUR_TIME_SLOTS, s.newBookingTime, { it }, Modifier.weight(1f)) { s.newBookingTime = it }
+                Dropdown("Time Slot", slots, s.newBookingTime, { it.ifBlank { "No time slots set up" } }, Modifier.weight(1f)) { s.newBookingTime = it }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Label("Number of Guests / Pax"); Stepper(s.newBookingGuests, "") { s.newBookingGuests = it } }

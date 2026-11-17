@@ -33,7 +33,7 @@ fun Booking.slotKey(): String {
 }
 
 /** [farmerId] links a farmer account to its farm in the farmers table. */
-data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role, val farmerId: Int? = null)
+data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role, val farmerId: Int? = null, val address: String = "")
 
 @Serializable
 data class FarmTour(
@@ -269,4 +269,24 @@ data class SeedData(
     val reviews: List<CustomerReview>,
     val notifications: List<AppNotification>,
     val config: AppImages,
+    val users: List<SeedUser> = emptyList(),
+    val guides: List<Guide> = emptyList(),
+    val couriers: List<Courier> = emptyList(),
+    val timeSlots: List<TimeSlot> = emptyList(),
+    val settings: Map<String, String> = emptyMap(),
 )
+
+@Serializable
+data class SeedUser(val fullName: String, val email: String, val phone: String, val role: String, val address: String = "", val farmerId: Int? = null)
+
+/** A tour guide working at a partner farm. */
+@Serializable
+data class Guide(val id: Int, val farmerId: Int?, val name: String)
+
+/** A delivery partner that can be assigned to produce orders. */
+@Serializable
+data class Courier(val id: Int, val company: String, val riderName: String, val riderPhone: String, val vehicle: String, val hub: String)
+
+/** A bookable time slot for a tour ("tour") or orchard ("orchard"). */
+@Serializable
+data class TimeSlot(val activityType: String, val activityId: Int, val label: String, val id: Int = 0)

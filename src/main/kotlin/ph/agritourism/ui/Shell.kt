@@ -83,7 +83,7 @@ private fun TopBar(s: AppState) {
             BadgedIcon(Icons.Outlined.Notifications, s.unreadCount, "Notifications") { s.isNotificationsOpen = !s.isNotificationsOpen }
             Spacer(Modifier.width(8.dp))
             if (s.isStaff) {
-                val active = s.visibleOrders.count { it.fulfillmentStatus == "Pending Packing" || it.fulfillmentStatus == "Dispatched" }
+                val active = s.visibleOrders.count { it.fulfillmentStatus != "Delivered" }
                 BadgedIcon(Icons.Outlined.Inventory2, active, "Tourist Produce Orders & Deliveries") { s.navigate(Page.FARMER_ORDERS) }
             }
             if (s.isTourist) {
@@ -94,7 +94,7 @@ private fun TopBar(s: AppState) {
                         Icon(Icons.Outlined.ShoppingBag, "Cart", tint = Palette.Forest, modifier = Modifier.size(18.dp))
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text("$PESO${money(s.cartSubtotal)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Palette.Deep)
+                    Text("$PESO${money(s.cartValue)}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Palette.Deep)
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -169,6 +169,7 @@ private fun Sidebar(s: AppState) {
                     item(Icons.Outlined.ShoppingBag, "Tourist Orders", s.activePage == Page.FARMER_ORDERS, "${s.visibleOrders.size}") { s.navigate(Page.FARMER_ORDERS) }
                     item(Icons.Outlined.Agriculture, "My Produce Catalog", s.activePage == Page.FARMER_PRODUCTS) { s.navigate(Page.FARMER_PRODUCTS) }
                     item(Icons.Outlined.Person, "Farmer Profile & Catalog", s.activePage == Page.FARMER_PROFILE) { s.navigate(Page.FARMER_PROFILE) }
+                    item(Icons.Outlined.Schedule, "Guides & Time Slots", s.activePage == Page.FARM_SETUP) { s.navigate(Page.FARM_SETUP) }
                 } else {
                     item(Icons.Outlined.Explore, "Explore Tours", s.activePage == Page.FARM_DETAIL) { s.navigate(Page.FARM_DETAIL) }
                     item(Icons.Outlined.AutoAwesome, "Fruit Picking", s.activePage == Page.FRUIT_PICKING) { s.navigate(Page.FRUIT_PICKING) }
@@ -180,6 +181,8 @@ private fun Sidebar(s: AppState) {
                 if (s.isAdmin) {
                     item(Icons.Outlined.ShoppingBag, "All Orders", s.activePage == Page.FARMER_ORDERS, "${s.farmerOrders.size}") { s.navigate(Page.FARMER_ORDERS) }
                     item(Icons.Outlined.Agriculture, "Produce Catalog", s.activePage == Page.FARMER_PRODUCTS) { s.navigate(Page.FARMER_PRODUCTS) }
+                    item(Icons.Outlined.Schedule, "Guides & Time Slots", s.activePage == Page.FARM_SETUP) { s.navigate(Page.FARM_SETUP) }
+                    item(Icons.Outlined.Settings, "Platform Settings", s.activePage == Page.PLATFORM_SETTINGS) { s.navigate(Page.PLATFORM_SETTINGS) }
                     item(Icons.Outlined.Storage, "SQL Database", s.activePage == Page.SQL_STUDIO) { s.navigate(Page.SQL_STUDIO) }
                 }
             }
@@ -287,6 +290,8 @@ private fun PageContent(s: AppState) {
                 p == Page.LOGIN -> LoginPage(s)
                 p == Page.FARMER_PROFILE -> FarmerProfilePage(s)
                 p == Page.SQL_STUDIO -> SqlStudioPage(s)
+                p == Page.FARM_SETUP -> FarmSetupPage(s)
+                p == Page.PLATFORM_SETTINGS -> PlatformSettingsPage(s)
             }
         }
     }

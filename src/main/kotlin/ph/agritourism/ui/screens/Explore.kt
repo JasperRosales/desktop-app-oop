@@ -36,7 +36,7 @@ private fun PageHeader(title: String, sub: String, tag: String? = null) {
 @Composable
 fun ExploreTours(s: AppState) {
     PageHeader("Explore Philippine Farm Tours",
-        "Handpicked eco-sanctuaries, heritage agro-trails, and scenic mountain farms across Batangas, Benguet, Laguna, and Pampanga",
+        "Handpicked eco-sanctuaries, heritage agro-trails, and scenic mountain farms across ${s.provinces.joinToString()}",
         "${s.tours.size} Verified Destinations")
     Grid(s.tours, 3) { t ->
         PhotoCard(t.imageUrl, t.name, t.location.substringBefore(","), t.rating, t.reviewsCount, t.pricePerPerson, t.id.toLong() in s.favoriteIds,
@@ -61,15 +61,15 @@ fun MarketPage(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             H1("Fresh Local Vegetables & Organic Harvest")
-            Sub("100% natural, farm-to-table organic vegetables harvested directly from Batangas, Benguet, and Laguna")
+            Sub("Farm-to-table produce harvested directly by ${s.farmers.size} partner farms across ${s.provinces.joinToString()}")
         }
-        FilterChipRow(listOf("All", "Vegetables", "Fruits", "Others"), s.marketFilter, { if (it == "All") "All Products" else it }) { s.marketFilter = it }
+        FilterChipRow(listOf("All") + s.productCategories, s.marketFilter, { if (it == "All") "All Products" else it }) { s.marketFilter = it }
     }
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Color(0xFFFEF3C7), Color(0xFFDCFCE7)))).padding(16.dp),
+    if (s.maxDiscount > 0) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Color(0xFFFEF3C7), Color(0xFFDCFCE7)))).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.Discount, null, tint = Color(0xFFB45309))
         Spacer(Modifier.width(10.dp))
-        Text("Seasonal Harvest Promo: 10% OFF automatically applied on all local vegetables and fruits!", Modifier.weight(1f), fontWeight = FontWeight.Bold, color = Palette.Deep)
+        Text("Harvest deals: up to ${s.maxDiscount}% OFF on ${s.products.count { it.stock > 0 && it.discountPercent > 0 }} products, applied automatically!", Modifier.weight(1f), fontWeight = FontWeight.Bold, color = Palette.Deep)
         Pill("Direct Farm-to-Table", Color.White)
     }
     if (s.filteredProducts.isEmpty()) Sub("No products match your search.")
@@ -84,7 +84,7 @@ fun ProductCard(s: AppState, p: Product) {
     GlassCard(padding = 0.dp) {
         Box(Modifier.fillMaxWidth().height(160.dp)) {
             AsyncImage(p.imageUrl, Modifier.fillMaxSize())
-            Pill("${p.discountPercent}% OFF", Color(0xFFDC2626), Color.White, Modifier.align(Alignment.TopStart).padding(10.dp))
+            if (p.discountPercent > 0) Pill("${p.discountPercent}% OFF", Color(0xFFDC2626), Color.White, Modifier.align(Alignment.TopStart).padding(10.dp))
             Pill(p.category, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopEnd).padding(10.dp))
         }
         Column(Modifier.padding(14.dp)) {
@@ -100,7 +100,7 @@ fun ProductCard(s: AppState, p: Product) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("$PESO${p.discountedPrice.roundToInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Palette.Forest)
                 Spacer(Modifier.width(4.dp))
-                Text("$PESO${money(p.price)}", fontSize = 11.sp, color = Palette.Muted, textDecoration = TextDecoration.LineThrough)
+                if (p.discountPercent > 0) Text("$PESO${money(p.price)}", fontSize = 11.sp, color = Palette.Muted, textDecoration = TextDecoration.LineThrough)
                 Text(" ${p.unit}", fontSize = 11.sp, color = Palette.Muted)
                 Spacer(Modifier.weight(1f))
                 PrimaryButton(when { soldOut -> "Sold Out"; limit -> "Limit Reached"; inCart > 0 -> "Add ($inCart/${p.stock})"; else -> "Add" },
@@ -128,7 +128,7 @@ fun FarmersStoriesPage(s: AppState) {
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        val provinces = listOf("All", "Batangas", "Benguet", "Bukidnon", "Davao")
+        val provinces = listOf("All") + s.provinces
         FilterChipRow(provinces, s.farmerStoriesFilter, { p -> "$p (${if (p == "All") s.farmers.size else s.farmers.count { it.province == p }})" }) { s.farmerStoriesFilter = it }
         Spacer(Modifier.weight(1f))
         SearchField(s.farmerSearchQuery, { s.farmerSearchQuery = it }, "Search farmer or crop…", Modifier.width(260.dp))
@@ -197,26 +197,26 @@ fun CatalogHome(s: AppState) {
     if (cat == ShowcaseCategory.ALL || cat == ShowcaseCategory.PLACES) {
         SectionHeader("Farm Destinations", "Sustainable agro-estates and eco-sanctuaries across the Philippines")
         Grid(s.tours.filter { q.isEmpty() || it.name.contains(q, true) || it.location.contains(q, true) || it.description.contains(q, true) }, 3) { t ->
-            ShowcaseCard(t.imageUrl, t.location, t.name, t.description)
+            ShowcaseCard(t.imageUrl, t.location, t.name, t.description) { s.openCatalogTour(t) }
         }
     }
     if (cat == ShowcaseCategory.ALL || cat == ShowcaseCategory.PRODUCTS) {
         SectionHeader("Fresh Produce from Local Farms", "Naturally cultivated organic crops and artisanal agricultural products")
         Grid(s.products.filter { q.isEmpty() || it.name.contains(q, true) || it.farmOrigin.contains(q, true) || it.description.contains(q, true) }, 4) { p ->
-            ShowcaseCard(p.imageUrl, p.farmOrigin, p.name, p.description, 140)
+            ShowcaseCard(p.imageUrl, p.farmOrigin, p.name, p.description, 140) { s.openCatalogProduct(p) }
         }
     }
     if (cat == ShowcaseCategory.ALL || cat == ShowcaseCategory.ORCHARDS) {
         SectionHeader("Tree-to-Basket Fruit Orchards", "Lush Philippine fruit orchards for seasonal harvesting")
         Grid(s.fruitPicking.filter { q.isEmpty() || it.farmName.contains(q, true) || it.fruitName.contains(q, true) || it.description.contains(q, true) }, 3) { o ->
-            ShowcaseCard(o.imageUrl, o.fruitName.ifBlank { o.title }, o.farmName, "${o.location}\n${o.description}")
+            ShowcaseCard(o.imageUrl, o.fruitName.ifBlank { o.title }, o.farmName, "${o.location}\n${o.description}") { s.openCatalogOrchard(o) }
         }
     }
 }
 
 @Composable
-private fun ShowcaseCard(image: String, tag: String, title: String, desc: String, h: Int = 180) {
-    GlassCard(padding = 0.dp) {
+private fun ShowcaseCard(image: String, tag: String, title: String, desc: String, h: Int = 180, onClick: () -> Unit) {
+    GlassCard(Modifier.handCursor(), padding = 0.dp, onClick = onClick) {
         Box(Modifier.fillMaxWidth().height(h.dp)) {
             AsyncImage(image, Modifier.fillMaxSize())
             Pill(tag, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.BottomStart).padding(10.dp))

@@ -4,6 +4,8 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import ph.agritourism.model.*
 import java.io.File
 import java.sql.Connection
@@ -31,6 +33,8 @@ class Database(file: File = defaultFile()) {
         }
         createSchema()
         if (count("products") == 0 && count("tours") == 0) seed()
+        refreshSeedImages()
+        seedReferenceData()
         // Older databases stored users without passwords; give them the documented default.
         exec("UPDATE users SET password_hash=? WHERE password_hash IS NULL OR password_hash=''", hashPassword(DEFAULT_PASSWORD))
     }
@@ -137,6 +141,15 @@ class Database(file: File = defaultFile()) {
             """CREATE TABLE IF NOT EXISTS user_favorites (
                 user_email TEXT NOT NULL, item_id INTEGER NOT NULL,
                 PRIMARY KEY (user_email, item_id))""",
+            """CREATE TABLE IF NOT EXISTS guides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, farmer_id INTEGER, name TEXT NOT NULL)""",
+            """CREATE TABLE IF NOT EXISTS couriers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, company TEXT NOT NULL, rider_name TEXT NOT NULL,
+                rider_phone TEXT, vehicle TEXT, hub TEXT)""",
+            """CREATE TABLE IF NOT EXISTS time_slots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, activity_type TEXT NOT NULL, activity_id INTEGER NOT NULL,
+                label TEXT NOT NULL, sort_order INTEGER)""",
+            """CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)""",
         )
         conn.createStatement().use { st -> ddl.forEach(st::execute) }
         migrate()
@@ -150,6 +163,7 @@ class Database(file: File = defaultFile()) {
 
     /** Upgrades databases created by older versions (shared cart/favorites, orders without an owner). */
     private fun migrate() {
+        if ("address" !in columns("users")) exec("ALTER TABLE users ADD COLUMN address TEXT")
         if ("customer_email" !in columns("orders")) exec("ALTER TABLE orders ADD COLUMN customer_email TEXT")
         if ("recipient_email" !in columns("notifications")) {
             exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
@@ -215,6 +229,72 @@ class Database(file: File = defaultFile()) {
         map.forEach { (old, new) -> cols.forEach { (t, c) -> exec("UPDATE $t SET $c=REPLACE($c, ?, ?) WHERE instr($c, ?) > 0", old, new, old) } }
     }
 
+    /** Re-syncs bundled catalog photos with seed.json once (older seeds paired items with the wrong pictures). Uploaded photos are kept. */
+    private fun refreshSeedImages() {
+        val version = 2
+        if (query("PRAGMA user_version") { it.getInt(1) }.first() >= version) return
+        val s = loadSeed()
+        tx {
+            s.products.forEach { exec("UPDATE products SET image_url=? WHERE id=? AND image_url LIKE 'res:%'", it.imageUrl, it.id) }
+            s.tours.forEach { exec("UPDATE tours SET image_url=?, thumbnails=? WHERE id=? AND image_url LIKE 'res:%'", it.imageUrl, it.thumbnails.enc(), it.id) }
+            s.fruitPicking.forEach { exec("UPDATE fruit_picking SET image_url=?, thumbnails=? WHERE id=? AND image_url LIKE 'res:%'", it.imageUrl, it.thumbnails.enc(), it.id) }
+            s.farmers.forEach {
+                exec("UPDATE farmers SET photo_url=?, farm_banner_url=?, gallery=? WHERE id=? AND farm_banner_url LIKE 'res:%'",
+                    it.photoUrl, it.farmBannerUrl, it.gallery.enc(), it.id)
+            }
+        }
+        conn.createStatement().use { it.execute("PRAGMA user_version = $version") }
+    }
+
+    /** Fills guides, couriers, time slots and settings from seed.json when missing (new or upgraded databases). */
+    private fun seedReferenceData() {
+        val s = loadSeed()
+        tx {
+            if (count("guides") == 0) s.guides.forEach { exec("INSERT INTO guides (id, farmer_id, name) VALUES (?,?,?)", it.id, it.farmerId, it.name) }
+            if (count("couriers") == 0) s.couriers.forEach {
+                exec("INSERT INTO couriers (id, company, rider_name, rider_phone, vehicle, hub) VALUES (?,?,?,?,?,?)",
+                    it.id, it.company, it.riderName, it.riderPhone, it.vehicle, it.hub)
+            }
+            if (count("time_slots") == 0) s.timeSlots.forEachIndexed { i, t ->
+                exec("INSERT INTO time_slots (activity_type, activity_id, label, sort_order) VALUES (?,?,?,?)", t.activityType, t.activityId, t.label, i)
+            }
+            // New keys are added on upgrade; values already in the database are never overwritten.
+            val images = json.encodeToJsonElement(AppImages.serializer(), s.config).jsonObject.mapValues { it.value.jsonPrimitive.content }
+            (s.settings + images.mapKeys { "image.${it.key}" }).forEach { (k, v) -> exec("INSERT OR IGNORE INTO settings (key, value) VALUES (?,?)", k, v) }
+            s.users.filter { it.address.isNotBlank() }.forEach {
+                exec("UPDATE users SET address=? WHERE lower(email)=lower(?) AND (address IS NULL OR address='')", it.address, it.email)
+            }
+        }
+    }
+
+    fun settings(): Map<String, String> = query("SELECT key, value FROM settings") { it.getString(1) to it.getString(2) }.toMap()
+    fun setSetting(key: String, value: String) = exec("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, value)
+
+    /** Bundled image settings (keys "image.<name>") as the typed config the UI uses. */
+    fun images(): AppImages {
+        val obj = kotlinx.serialization.json.JsonObject(settings().filterKeys { it.startsWith("image.") }
+            .map { (k, v) -> k.removePrefix("image.") to kotlinx.serialization.json.JsonPrimitive(v) }.toMap())
+        return runCatching { json.decodeFromJsonElement(AppImages.serializer(), obj) }.getOrElse { loadSeed().config }
+    }
+
+    fun guides(): List<Guide> = query("SELECT * FROM guides ORDER BY id") { r -> Guide(r.getInt("id"), r.getInt("farmer_id").takeIf { !r.wasNull() }, r.str("name")!!) }
+    fun couriers(): List<Courier> = query("SELECT * FROM couriers ORDER BY id") { r ->
+        Courier(r.getInt("id"), r.str("company")!!, r.str("rider_name")!!, r.str("rider_phone") ?: "", r.str("vehicle") ?: "", r.str("hub") ?: "")
+    }
+    fun timeSlots(): List<TimeSlot> = query("SELECT * FROM time_slots ORDER BY sort_order, id") { r ->
+        TimeSlot(r.str("activity_type")!!, r.getInt("activity_id"), r.str("label")!!, r.getInt("id"))
+    }
+
+    fun addGuide(farmerId: Int?, name: String) = exec("INSERT INTO guides (farmer_id, name) VALUES (?,?)", farmerId, name.trim())
+    fun deleteGuide(id: Int) = exec("DELETE FROM guides WHERE id=?", id)
+    fun addCourier(c: Courier) = exec("INSERT INTO couriers (company, rider_name, rider_phone, vehicle, hub) VALUES (?,?,?,?,?)",
+        c.company.trim(), c.riderName.trim(), c.riderPhone.trim(), c.vehicle.trim(), c.hub.trim())
+    fun deleteCourier(id: Int) = exec("DELETE FROM couriers WHERE id=?", id)
+    fun addTimeSlot(type: String, activityId: Int, label: String) =
+        exec("INSERT INTO time_slots (activity_type, activity_id, label, sort_order) VALUES (?,?,?,(SELECT COALESCE(MAX(sort_order),0)+1 FROM time_slots))",
+            type, activityId, label.trim())
+    fun deleteTimeSlot(id: Int) = exec("DELETE FROM time_slots WHERE id=?", id)
+
     private fun seed() {
         val s = loadSeed()
         tx {
@@ -230,11 +310,10 @@ class Database(file: File = defaultFile()) {
             linkOrderItems()
             classifyBookings()
             linkSeedReviews()
-            listOf(
-                Triple("Maria Santos", "maria.santos@gmail.com", "user"),
-                Triple("Juan Dela Cruz", "juan.delacruz@sunnyvalefarm.ph", "farmer"),
-                Triple("Administrator", "admin@agritourism.ph", "admin"),
-            ).forEach { (n, e, r) -> createUser(n, e, "+63 917 555 0192", DEFAULT_PASSWORD, r) }
+            s.users.forEach { u ->
+                createUser(u.fullName, u.email, u.phone, DEFAULT_PASSWORD, u.role)
+                exec("UPDATE users SET address=?, farmer_id=? WHERE lower(email)=lower(?)", u.address, u.farmerId, u.email)
+            }
             // Demo tourist's initial cart (mangoes x2, honey x1, banana chips x1) and favorites.
             val maria = Role.USER.email
             listOf(6 to 2, 8 to 1, 9 to 1).forEachIndexed { i, (idx, q) -> setCartItem(maria, s.products[idx].id, q, i) }
@@ -295,7 +374,7 @@ class Database(file: File = defaultFile()) {
 
     // ------------------------------------------------------------------ users
     private fun mapUser(r: ResultSet) = User(r.getLong("id"), r.str("full_name")!!, r.str("email")!!, r.str("phone") ?: "",
-        Role.of(r.str("role")!!), r.getInt("farmer_id").takeIf { !r.wasNull() })
+        Role.of(r.str("role")!!), r.getInt("farmer_id").takeIf { !r.wasNull() }, r.str("address") ?: "")
 
     /** The account that manages a farm, if any. */
     fun farmerAccount(farmerId: Int): User? =
@@ -330,6 +409,8 @@ class Database(file: File = defaultFile()) {
 
     fun updateUserProfile(id: Long, fullName: String, phone: String) =
         exec("UPDATE users SET full_name=?, phone=? WHERE id=?", fullName.trim(), phone.trim(), id)
+
+    fun updateUserAddress(id: Long, address: String) = exec("UPDATE users SET address=? WHERE id=?", address.trim(), id)
 
     fun userCount(): Int = count("users")
 

@@ -223,7 +223,7 @@ internal fun TicketModal(s: AppState, b: Booking) {
                 InfoTile("Party Size", "${b.participants} Guests", Icons.Outlined.Groups, Modifier.weight(1f))
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF0FDF4)).padding(14.dp)) {
-                Row { Text("🧭 Assigned Agro-Guide: ${b.assignedGuide ?: "Ate Rosa (Senior Guide)"}", Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold); Pill("Gate 1 Welcome Pavilion", Color.White) }
+                Row { Text("🧭 Assigned Agro-Guide: ${b.assignedGuide ?: "To be assigned"}", Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold); Pill("Gate 1 Welcome Pavilion", Color.White) }
                 Spacer(Modifier.height(6.dp))
                 Text("Pass Inclusions: Welcome native honey-lemonade drink, guided educational trail walk, sanitized harvesting basket, farm safety sun hat, and free parking access.", fontSize = 12.sp)
             }

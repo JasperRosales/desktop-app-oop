@@ -24,7 +24,7 @@ class UiSmokeTest {
     @AfterTest fun tearDown() { scope.cancel(); db.close(); file.delete() }
 
     private fun AppState.loginAs(role: Role) {
-        selectLoginRole(role); loginPassword = Database.DEFAULT_PASSWORD
+        selectLoginRole(role); loginEmail = role.email; loginPassword = Database.DEFAULT_PASSWORD
         assertTrue(login(), "login as $role failed: $loginError")
     }
 
