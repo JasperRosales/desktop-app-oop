@@ -19,7 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ph.agritourism.model.FarmTour
 import ph.agritourism.model.FarmerProfile
+import ph.agritourism.model.FruitPickingItem
 import ph.agritourism.ui.*
 
 /** Full picture and description of a catalog item, for visitors who haven't logged in. */
@@ -58,25 +60,32 @@ internal fun CatalogPreviewModal(s: AppState, p: CatalogPreview) {
     }
 }
 
-/** Lets a farmer list a new tour (or fruit-picking experience when [orchard]) on their own farm. */
+/**
+ * Lets a farmer list a new tour (or fruit-picking experience when [orchard]) on their own farm,
+ * or edit an existing [tour] / [orchardItem].
+ */
 @Composable
-internal fun AddActivityModal(s: AppState, orchard: Boolean) {
-    val close = { if (orchard) s.isAddOrchardModalOpen = false else s.isAddTourModalOpen = false }
+internal fun AddActivityModal(s: AppState, orchard: Boolean, tour: FarmTour? = null, orchardItem: FruitPickingItem? = null) {
+    val editing = tour != null || orchardItem != null
+    val close = {
+        if (orchard) { s.isAddOrchardModalOpen = false; s.editingOrchard = null } else { s.isAddTourModalOpen = false; s.editingTour = null }
+    }
     val farm = s.myFarm
-    var name by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-    var image by remember { mutableStateOf(farm?.farmBannerUrl.orEmpty()) }
+    var name by remember { mutableStateOf(tour?.name ?: orchardItem?.title ?: "") }
+    var price by remember { mutableStateOf((tour?.pricePerPerson ?: orchardItem?.pricePerPerson)?.toString() ?: "") }
+    var desc by remember { mutableStateOf(tour?.description ?: orchardItem?.description ?: "") }
+    var image by remember { mutableStateOf(tour?.imageUrl ?: orchardItem?.imageUrl ?: farm?.farmBannerUrl.orEmpty()) }
     var slot by remember { mutableStateOf("08:00 AM") }
-    var hours by remember { mutableStateOf("8:00 AM - 5:00 PM") }
-    var activities by remember { mutableStateOf("") }
-    var fruit by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf("2 hours") }
-    var season by remember { mutableStateOf("") }
+    var hours by remember { mutableStateOf(tour?.operatingHours ?: "8:00 AM - 5:00 PM") }
+    var activities by remember { mutableStateOf(tour?.activities?.joinToString() ?: "") }
+    var fruit by remember { mutableStateOf(orchardItem?.fruitName ?: "") }
+    var duration by remember { mutableStateOf(orchardItem?.duration ?: "2 hours") }
+    var season by remember { mutableStateOf(orchardItem?.seasonAvailability ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     Modal(close, 640.dp) {
-        ModalHeader(if (orchard) "Add Fruit Picking Experience" else "Add Farm Tour",
-            "Listed under ${farm?.farmName ?: "your farm"}", if (orchard) Icons.Outlined.AutoAwesome else Icons.Outlined.Explore, close)
+        ModalHeader((if (editing) "Edit " else "Add ") + if (orchard) "Fruit Picking Experience" else "Farm Tour",
+            if (editing) "Changes show in the catalog right away" else "Listed under ${farm?.farmName ?: "your farm"}",
+            if (editing) Icons.Outlined.Edit else if (orchard) Icons.Outlined.AutoAwesome else Icons.Outlined.Explore, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(image, Modifier.size(width = 160.dp, height = 110.dp).clip(RoundedCornerShape(14.dp)), contentDescription = "Cover photo")
@@ -93,7 +102,7 @@ internal fun AddActivityModal(s: AppState, orchard: Boolean) {
                 if (orchard) "e.g. Sweet Mango Picking" else "e.g. Sunrise Farm Walk")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Field("Price per Person (₱)", price, { v -> price = v.filter(Char::isDigit) }, Modifier.weight(1f), "e.g. 350", number = true)
-                Field("First Time Slot", slot, { slot = it }, Modifier.weight(1f), "08:00 AM - Morning Walk")
+                if (!editing) Field("First Time Slot", slot, { slot = it }, Modifier.weight(1f), "08:00 AM - Morning Walk")
             }
             if (orchard) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -106,12 +115,20 @@ internal fun AddActivityModal(s: AppState, orchard: Boolean) {
                 Field("Activities (comma separated)", activities, { activities = it }, Modifier.fillMaxWidth(), "e.g. Rice planting, Carabao ride")
             }
             Field("Description", desc, { desc = it }, Modifier.fillMaxWidth(), "What will visitors see and do?", singleLine = false, minLines = 3)
-            Sub("Add more time slots later under Guides & Time Slots.")
+            Sub(if (editing) "Manage time slots under Guides & Time Slots." else "Add more time slots later under Guides & Time Slots.")
             ErrorBanner(error)
-            PrimaryButton(if (orchard) "Publish Fruit Picking" else "Publish Tour", Modifier.fillMaxWidth(), Icons.Outlined.Publish) {
+            PrimaryButton(if (editing) "Save Changes" else if (orchard) "Publish Fruit Picking" else "Publish Tour", Modifier.fillMaxWidth(),
+                if (editing) Icons.Outlined.Save else Icons.Outlined.Publish) {
                 val d = AppState.ActivityDraft(name, price, desc, image, slot, hours, activities, fruit, duration, season)
-                error = if (orchard) s.createOrchard(d) else s.createTour(d)
+                error = when {
+                    tour != null -> s.updateTour(tour.id, d)
+                    orchardItem != null -> s.updateOrchard(orchardItem.id, d)
+                    orchard -> s.createOrchard(d)
+                    else -> s.createTour(d)
+                }
             }
+            if (tour != null) SecondaryButton("Delete Tour", Modifier.fillMaxWidth(), Icons.Outlined.Delete, color = Palette.Red) { s.askDeleteTour(tour) }
+            if (orchardItem != null) SecondaryButton("Delete Experience", Modifier.fillMaxWidth(), Icons.Outlined.Delete, color = Palette.Red) { s.askDeleteOrchard(orchardItem) }
         }
     }
 }

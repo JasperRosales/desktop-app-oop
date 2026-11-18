@@ -454,4 +454,154 @@ class FlowTest {
         assertNotEquals(before, s.avatar); assertEquals(s.avatar, db.findUser(Role.USER.email)!!.avatarUrl)
         img.delete()
     }
+
+    @Test fun farmerProductCrud() {
+        s.loginAs(Role.FARMER)
+        val p = s.farmProducts.first()
+        val other = s.products.first { it.farmerId != s.myFarmId }
+        assertFalse(s.canEditProduct(other))
+        s.openEditProduct(other); assertFalse(s.isAddProductModalOpen)
+        s.openEditProduct(p)
+        s.newProductDesc = "Picked at dawn, edited description."; s.newProductDiscount = "15"; s.saveProduct()
+        val saved = db.products().first { it.id == p.id }
+        assertEquals("Picked at dawn, edited description.", saved.description); assertEquals(15, saved.discountPercent)
+        assertEquals(p.rating, saved.rating)
+        s.openEditProduct(p); s.newProductDiscount = "95"; s.saveProduct()
+        assertEquals(15, db.products().first { it.id == p.id }.discountPercent) // rejected
+        s.restockProduct(p.id, 10); assertEquals(saved.stock + 10, db.products().first { it.id == p.id }.stock)
+        // Deleting hides it from the market and carts but keeps it for old orders.
+        s.loginAs(Role.USER); s.addToCart(s.products.first { it.id == p.id })
+        s.loginAs(Role.FARMER); s.deleteProduct(p.id)
+        assertTrue(s.products.none { it.id == p.id }); assertTrue(s.allProducts.any { it.id == p.id && it.archived })
+        assertTrue(db.cart(Role.USER.email).none { it.first == p.id })
+        val s2 = reopen().loginAs(Role.USER)
+        assertTrue(s2.products.none { it.id == p.id }); assertTrue(s2.cart.none { it.product.id == p.id })
+    }
+
+    @Test fun farmerTourAndOrchardCrud() {
+        s.loginAs(Role.FARMER)
+        val mine = s.myFarmId!!
+        val t = s.tours.first { it.farmerId == mine }
+        val other = s.tours.first { it.farmerId != mine }
+        val d = AppState.ActivityDraft("Edited Farm Walk", "420", "A brand new description for the walk.", "", "", "7:00 AM - 4:00 PM", "Planting, Harvest")
+        assertNotNull(s.updateTour(other.id, d))
+        assertNull(s.updateTour(t.id, d))
+        val e = db.tours().first { it.id == t.id }
+        assertEquals("Edited Farm Walk", e.name); assertEquals(420, e.pricePerPerson); assertEquals(listOf("Planting", "Harvest"), e.activities)
+        assertEquals(t.rating, e.rating); assertEquals(mine, e.farmerId)
+        val o = s.fruitPicking.first { it.farmerId == mine }
+        assertNull(s.updateOrchard(o.id, d.copy(fruit = "Rambutan", season = "Aug - Oct")))
+        assertEquals("Rambutan", db.fruitPicking().first { it.id == o.id }.fruitName)
+        // A booking on the tour stays visible to the farm after the tour is deleted.
+        val booked = s.visibleBookings.firstOrNull { it.activityType == "tour" && it.farmId == t.id }
+        s.deleteTour(other.id); assertTrue(s.tours.any { it.id == other.id }) // not theirs
+        s.deleteTour(t.id); s.deleteOrchard(o.id)
+        assertTrue(s.tours.none { it.id == t.id }); assertTrue(s.fruitPicking.none { it.id == o.id })
+        booked?.let { b -> assertTrue(s.visibleBookings.any { it.id == b.id }) }
+        val s2 = reopen()
+        assertTrue(s2.tours.none { it.id == t.id }); assertTrue(s2.allTours.any { it.id == t.id })
+    }
+
+    @Test fun touristEditsAndDeletesReview() {
+        s.loginAs(Role.ADMIN); s.checkInBooking(101L)
+        s.loginAs(Role.USER)
+        val b = s.bookings.first { it.id == 101L }
+        fun count() = if (b.activityType == "tour") s.allTours.first { it.id == b.farmId }.reviewsCount else s.allOrchards.first { it.id == b.farmId }.reviewsCount
+        val before = count()
+        assertNull(s.submitReview(b.id, 2, "It was okay, a bit hot outside."))
+        val r = s.reviewForBooking(b.id)!!
+        assertNull(s.updateReview(r.id, 5, "Actually it was wonderful, loved it!"))
+        assertEquals(5, db.reviews().first { it.id == r.id }.rating)
+        s.loginAs(Role.FARMER); assertFalse(s.canDeleteReview(s.reviews.first { it.id == r.id }))
+        s.loginAs(Role.USER); s.deleteReview(r.id)
+        assertNull(s.reviewForBooking(b.id)); assertEquals(before, count())
+        assertTrue(s.canReview(s.bookings.first { it.id == b.id })) // can review again
+    }
+
+    @Test fun ordersCanBeCancelled() {
+        s.loginAs(Role.USER)
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        val p = s.products.first { it.stock > 2 }
+        s.addToCart(p); s.addToCart(p); s.deliveryAddress = "Somewhere"; s.placeOrder()
+        val o = s.farmerOrders.first()
+        assertEquals(p.stock - 2, s.products.first { it.id == p.id }.stock)
+        assertTrue(s.canCancelOrder(o)); s.cancelOrder(o.id)
+        assertEquals("Cancelled", db.orders().first { it.id == o.id }.fulfillmentStatus)
+        assertEquals(p.stock, db.products().first { it.id == p.id }.stock)
+        assertFalse(s.canCancelOrder(s.farmerOrders.first { it.id == o.id }))
+        // Tourists can't cancel once packing has started; admins can delete order records.
+        s.addToCart(p); s.placeOrder()
+        val o2 = s.farmerOrders.first()
+        s.loginAs(Role.ADMIN); s.orderStatusUpdate(o2.id, "Packed")
+        s.loginAs(Role.USER); assertFalse(s.canCancelOrder(s.farmerOrders.first { it.id == o2.id }))
+        s.deleteOrder(o2.id); assertTrue(s.farmerOrders.any { it.id == o2.id })
+        s.loginAs(Role.ADMIN); s.deleteOrder(o2.id)
+        assertTrue(db.orders().none { it.id == o2.id })
+    }
+
+    @Test fun farmerFullCrudOnProductsToursAndOrchards() {
+        s.loginAs(Role.USER)
+        val mineFarm = db.findUser(Role.FARMER.email)!!.farmerId!!
+        val p = s.products.first { it.farmerId == mineFarm && it.stock > 0 }
+        s.addToCart(p)
+        s.loginAs(Role.FARMER)
+        val other = s.products.first { it.farmerId != mineFarm }
+        // Update with discount
+        s.openEditProduct(p); s.newProductDesc = "Edited description"; s.newProductDiscount = "15"; s.saveProduct()
+        val edited = db.products().first { it.id == p.id }
+        assertEquals("Edited description", edited.description); assertEquals(15, edited.discountPercent)
+        s.newProductDiscount = "95"; s.openEditProduct(edited); s.newProductDiscount = "95"; s.saveProduct()
+        assertEquals(15, db.products().first { it.id == p.id }.discountPercent) // rejected
+        s.isAddProductModalOpen = false; s.editingProductId = null
+        // Restock and delete; other farms' products are off limits
+        s.restockProduct(p.id, 10); assertEquals(edited.stock + 10, db.products().first { it.id == p.id }.stock)
+        s.deleteProduct(other.id); assertTrue(s.products.any { it.id == other.id })
+        s.deleteProduct(p.id)
+        assertTrue(s.products.none { it.id == p.id }); assertTrue(db.cart(Role.USER.email).none { it.first == p.id })
+        // Tours: edit and delete own, not others
+        val tour = s.tours.first { it.farmerId == mineFarm }
+        val otherTour = s.tours.first { it.farmerId != mineFarm }
+        val d = AppState.ActivityDraft("Renamed Tour", "777", "A brand new description", "", "", hours = "9:00 AM - 4:00 PM", activities = "Walk, Swim")
+        assertNotNull(s.updateTour(otherTour.id, d))
+        assertNull(s.updateTour(tour.id, d))
+        val t2 = db.tours().first { it.id == tour.id }
+        assertEquals("Renamed Tour", t2.name); assertEquals(777, t2.pricePerPerson); assertEquals(listOf("Walk", "Swim"), t2.activities)
+        s.deleteTour(tour.id)
+        assertTrue(s.tours.none { it.id == tour.id }); assertTrue(db.tours().first { it.id == tour.id }.archived)
+        // Orchards
+        val orch = s.fruitPicking.first { it.farmerId == mineFarm }
+        assertNull(s.updateOrchard(orch.id, AppState.ActivityDraft("New Orchard Name", "250", "Fresh picking all day", "", "", fruit = "Mango")))
+        assertEquals("Mango", db.fruitPicking().first { it.id == orch.id }.fruitName)
+        s.deleteOrchard(orch.id); assertTrue(s.fruitPicking.none { it.id == orch.id })
+        // Survives a restart
+        val s2 = reopen().loginAs(Role.FARMER)
+        assertTrue(s2.products.none { it.id == p.id }); assertTrue(s2.tours.none { it.id == tour.id })
+    }
+
+    @Test fun touristEditsAndDeletesReviewAndCancelsOrder() {
+        s.loginAs(Role.ADMIN); s.checkInBooking(101L)
+        s.loginAs(Role.USER)
+        val b = s.bookings.first { it.id == 101L }
+        assertNull(s.submitReview(b.id, 2, "It was okay, a bit hot."))
+        val r = s.reviewForBooking(b.id)!!
+        assertNull(s.updateReview(r.id, 5, "Actually it was wonderful!"))
+        assertEquals(5, db.reviews().first { it.id == r.id }.rating)
+        val count = { if (b.activityType == "tour") db.tours().first { it.id == b.farmId }.reviewsCount else db.fruitPicking().first { it.id == b.farmId }.reviewsCount }
+        val before = count()
+        s.deleteReview(r.id)
+        assertNull(s.reviewForBooking(b.id)); assertEquals(before - 1, count())
+        // Order cancel returns stock
+        s.cart.forEach { c -> s.updateCartQty(c.product.id, -c.quantity) }
+        val p = s.products.first { it.stock > 2 }
+        s.addToCart(p); s.addToCart(p); s.deliveryAddress = "Somewhere"; s.placeOrder()
+        val o = s.farmerOrders.first()
+        assertEquals(p.stock - 2, db.products().first { it.id == p.id }.stock)
+        assertTrue(s.canCancelOrder(o)); s.cancelOrder(o.id)
+        assertEquals("Cancelled", db.orders().first { it.id == o.id }.fulfillmentStatus)
+        assertEquals(p.stock, db.products().first { it.id == p.id }.stock)
+        assertFalse(s.canCancelOrder(s.farmerOrders.first { it.id == o.id }))
+        // Admin can delete orders, tourists can't
+        s.deleteOrder(o.id); assertTrue(db.orders().any { it.id == o.id })
+        s.loginAs(Role.ADMIN); s.deleteOrder(o.id); assertTrue(db.orders().none { it.id == o.id })
+    }
 }

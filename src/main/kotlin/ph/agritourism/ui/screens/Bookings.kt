@@ -88,7 +88,13 @@ fun MyBookingsPage(s: AppState) {
                     else PrimaryButton("Gate Check-In", icon = Icons.Outlined.CheckBox) { s.checkInBooking(b.id) }
                 }
                 if (s.canReview(b)) PrimaryButton("Write Review", icon = Icons.Outlined.RateReview, color = Color(0xFFB45309)) { s.reviewingBooking = b }
-                s.reviewForBooking(b.id)?.let { Pill("★ ${it.rating} Reviewed", Color(0xFFFEF3C7), Color(0xFF92400E)) }
+                s.reviewForBooking(b.id)?.let { r ->
+                    Pill("★ ${r.rating} Reviewed", Color(0xFFFEF3C7), Color(0xFF92400E))
+                    if (s.canEditReview(r)) SecondaryButton("Edit Review", icon = Icons.Outlined.RateReview) { s.reviewingBooking = b }
+                    if (s.canDeleteReview(r)) IconButton({ s.confirm("Delete your review?", "Your rating will be removed from this experience.") { s.deleteReview(r.id) } }) {
+                        Icon(Icons.Outlined.DeleteSweep, "Delete review", tint = Palette.Red)
+                    }
+                }
                 if (s.ownsBooking(b)) PrimaryButton("Online Ticket", icon = Icons.Outlined.ConfirmationNumber) { s.selectedBookingForTicket = b }
                 SecondaryButton("Receipt", icon = Icons.Outlined.Print) { s.printTourReceipt(b) }
                 SecondaryButton(if (farmer) "View Dossier" else "View Voucher", icon = Icons.Outlined.Visibility) { s.selectedBookingForView = b }
@@ -195,6 +201,17 @@ fun FarmerOrdersPage(s: AppState) {
                 }
                 SecondaryButton("Receipt", icon = Icons.Outlined.Print) { s.printOrderReceipt(o) }
                 Spacer(Modifier.width(6.dp))
+                if (s.canCancelOrder(o)) {
+                    SecondaryButton("Cancel Order", icon = Icons.Outlined.Cancel, color = Color(0xFFB45309)) {
+                        s.confirm("Cancel order #${o.orderNumber}?", "The customer is notified and the items go back into stock.", "Yes, Cancel Order") { s.cancelOrder(o.id) }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+                if (s.isAdmin) {
+                    IconButton({ s.confirm("Delete order #${o.orderNumber}?", "This permanently removes the order record.") { s.deleteOrder(o.id) } }) {
+                        Icon(Icons.Outlined.Delete, "Delete order", tint = Palette.Red)
+                    }
+                }
                 PrimaryButton("Track Delivery", icon = Icons.Outlined.Navigation) { s.selectedOrderForTracking = o }
             }
         }
@@ -209,7 +226,7 @@ fun FarmerProductsPage(s: AppState) {
             H1("My Produce Catalog")
             Sub("Manage the produce listed by ${s.myFarmLabel}. Add new harvests with photos and pricing.")
         }
-        PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
+        PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.openAddProduct() }
     }
     if (s.farmProducts.isEmpty()) Sub("No products listed yet. Use List New Produce to add your first harvest.")
     Grid(s.farmProducts, 4) { p ->
@@ -222,11 +239,21 @@ fun FarmerProductsPage(s: AppState) {
             }
             Column(Modifier.padding(14.dp)) {
                 Text(p.name, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Sub(p.description, maxLines = 2)
+                Sub(p.description, maxLines = 2, minLines = 2)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column { Label("Farmer Price"); Row { Text("$PESO${money(p.price)}", fontWeight = FontWeight.ExtraBold, color = Palette.Forest); Text(" ${p.unit}", fontSize = 11.sp, color = Palette.Muted) } }
                     Spacer(Modifier.weight(1f)); Pill("Active Listing")
+                }
+                if (s.canEditProduct(p)) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SecondaryButton("Edit", Modifier.weight(1f), icon = Icons.Outlined.Edit) { s.openEditProduct(p) }
+                        SecondaryButton("+10", icon = Icons.Outlined.Add) { s.restockProduct(p.id, 10) }
+                        IconButton({ s.confirm("Delete \"${p.name}\"?", "It will be removed from the market and from customers' carts. Past orders keep it.") { s.deleteProduct(p.id) } }) {
+                            Icon(Icons.Outlined.Delete, "Delete product", tint = Palette.Red)
+                        }
+                    }
                 }
             }
         }

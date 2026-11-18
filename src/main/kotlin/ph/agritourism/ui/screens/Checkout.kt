@@ -321,6 +321,10 @@ fun OrderTrackingPage(s: AppState) {
                 Text("✓ You have confirmed receipt of this order", fontWeight = FontWeight.ExtraBold, color = Color(0xFF166534))
                 Text("Verified received on ${o.receivedAt ?: "—"}. The farm host has been notified of the successful delivery!", fontSize = 12.sp)
             }
+        } else if (o.fulfillmentStatus == "Cancelled") {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFEE2E2)).padding(16.dp)) {
+                Text("This order was cancelled. Items were returned to the farm's stock.", fontWeight = FontWeight.Bold, color = Palette.Red)
+            }
         } else {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFFBEB)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -329,6 +333,12 @@ fun OrderTrackingPage(s: AppState) {
                 }
                 if (s.ownsOrder(o) && reached >= 3) PrimaryButton("Confirm Order Received", icon = Icons.Filled.Check) { s.confirmOrderReceived(o.id) }
                 else if (s.ownsOrder(o)) Pill("Available once out for delivery", Color(0xFFFEF3C7), Color(0xFF92400E))
+                if (s.canCancelOrder(o)) {
+                    Spacer(Modifier.width(8.dp))
+                    SecondaryButton("Cancel Order", icon = Icons.Outlined.Cancel, color = Color(0xFFB45309)) {
+                        s.confirm("Cancel order #${o.orderNumber}?", "You can cancel until the farm starts packing.", "Yes, Cancel Order") { s.cancelOrder(o.id) }
+                    }
+                }
             }
         }
     }

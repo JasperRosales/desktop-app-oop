@@ -186,7 +186,7 @@ private fun Sidebar(s: AppState) {
             }
             if (s.isLoggedIn && s.userRole == Role.FARMER && expanded) {
                 Spacer(Modifier.height(12.dp))
-                PrimaryButton("Add Farm Product", Modifier.fillMaxWidth(), Icons.Filled.Add, color = Color(0xFF15803D)) { s.isAddProductModalOpen = true }
+                PrimaryButton("Add Farm Product", Modifier.fillMaxWidth(), Icons.Filled.Add, color = Color(0xFF15803D)) { s.openAddProduct() }
                 SecondaryButton("Add Walk-in Tour", Modifier.fillMaxWidth(), Icons.Outlined.EventAvailable) { s.isAddBookingModalOpen = true }
             }
         }
