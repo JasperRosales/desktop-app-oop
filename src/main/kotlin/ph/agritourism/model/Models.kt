@@ -33,7 +33,9 @@ fun Booking.slotKey(): String {
 }
 
 /** [farmerId] links a farmer account to its farm in the farmers table. */
-data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role, val farmerId: Int? = null, val address: String = "")
+data class User(val id: Long, val fullName: String, val email: String, val phone: String, val role: Role, val farmerId: Int? = null, val address: String = "",
+                /** Profile photo chosen by the user (blank = role default). */
+                val avatarUrl: String = "")
 
 @Serializable
 data class FarmTour(
@@ -274,7 +276,12 @@ data class SeedData(
     val couriers: List<Courier> = emptyList(),
     val timeSlots: List<TimeSlot> = emptyList(),
     val settings: Map<String, String> = emptyMap(),
+    val faqs: List<Faq> = emptyList(),
 )
+
+/** A help-center question shown on the opening page and the Help page. */
+@Serializable
+data class Faq(val question: String, val answer: String, val id: Int = 0)
 
 @Serializable
 data class SeedUser(val fullName: String, val email: String, val phone: String, val role: String, val address: String = "", val farmerId: Int? = null)

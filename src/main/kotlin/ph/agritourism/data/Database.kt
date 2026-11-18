@@ -18,7 +18,7 @@ import java.sql.ResultSet
  * The database file lives in ~/.agritourism/agritourism.db (override with AGRITOURISM_DB)
  * and is seeded from seed.json on first run.
  */
-class Database(file: File = defaultFile()) {
+class Database(val file: File = defaultFile()) {
 
     val conn: Connection
     private var txDepth = 0
@@ -150,6 +150,8 @@ class Database(file: File = defaultFile()) {
                 id INTEGER PRIMARY KEY AUTOINCREMENT, activity_type TEXT NOT NULL, activity_id INTEGER NOT NULL,
                 label TEXT NOT NULL, sort_order INTEGER)""",
             """CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)""",
+            """CREATE TABLE IF NOT EXISTS faqs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, answer TEXT NOT NULL, sort_order INTEGER)""",
         )
         conn.createStatement().use { st -> ddl.forEach(st::execute) }
         migrate()
@@ -164,6 +166,9 @@ class Database(file: File = defaultFile()) {
     /** Upgrades databases created by older versions (shared cart/favorites, orders without an owner). */
     private fun migrate() {
         if ("address" !in columns("users")) exec("ALTER TABLE users ADD COLUMN address TEXT")
+        if ("avatar_url" !in columns("users")) exec("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        // Payment proof photos are no longer used; the old sample receipt showed a fixed amount.
+        exec("UPDATE orders SET uploaded_receipt_url='' WHERE uploaded_receipt_url LIKE '%receipt.png'")
         if ("customer_email" !in columns("orders")) exec("ALTER TABLE orders ADD COLUMN customer_email TEXT")
         if ("recipient_email" !in columns("notifications")) {
             exec("ALTER TABLE notifications ADD COLUMN recipient_email TEXT")
@@ -255,6 +260,9 @@ class Database(file: File = defaultFile()) {
                 exec("INSERT INTO couriers (id, company, rider_name, rider_phone, vehicle, hub) VALUES (?,?,?,?,?,?)",
                     it.id, it.company, it.riderName, it.riderPhone, it.vehicle, it.hub)
             }
+            if (count("faqs") == 0) s.faqs.forEachIndexed { i, f ->
+                exec("INSERT INTO faqs (question, answer, sort_order) VALUES (?,?,?)", f.question, f.answer, i)
+            }
             if (count("time_slots") == 0) s.timeSlots.forEachIndexed { i, t ->
                 exec("INSERT INTO time_slots (activity_type, activity_id, label, sort_order) VALUES (?,?,?,?)", t.activityType, t.activityId, t.label, i)
             }
@@ -284,6 +292,8 @@ class Database(file: File = defaultFile()) {
     fun timeSlots(): List<TimeSlot> = query("SELECT * FROM time_slots ORDER BY sort_order, id") { r ->
         TimeSlot(r.str("activity_type")!!, r.getInt("activity_id"), r.str("label")!!, r.getInt("id"))
     }
+
+    fun faqs(): List<Faq> = query("SELECT * FROM faqs ORDER BY sort_order, id") { r -> Faq(r.str("question")!!, r.str("answer")!!, r.getInt("id")) }
 
     fun addGuide(farmerId: Int?, name: String) = exec("INSERT INTO guides (farmer_id, name) VALUES (?,?)", farmerId, name.trim())
     fun deleteGuide(id: Int) = exec("DELETE FROM guides WHERE id=?", id)
@@ -374,7 +384,7 @@ class Database(file: File = defaultFile()) {
 
     // ------------------------------------------------------------------ users
     private fun mapUser(r: ResultSet) = User(r.getLong("id"), r.str("full_name")!!, r.str("email")!!, r.str("phone") ?: "",
-        Role.of(r.str("role")!!), r.getInt("farmer_id").takeIf { !r.wasNull() }, r.str("address") ?: "")
+        Role.of(r.str("role")!!), r.getInt("farmer_id").takeIf { !r.wasNull() }, r.str("address") ?: "", r.str("avatar_url") ?: "")
 
     /** The account that manages a farm, if any. */
     fun farmerAccount(farmerId: Int): User? =
@@ -410,6 +420,8 @@ class Database(file: File = defaultFile()) {
     fun updateUserProfile(id: Long, fullName: String, phone: String) =
         exec("UPDATE users SET full_name=?, phone=? WHERE id=?", fullName.trim(), phone.trim(), id)
 
+    fun updateUserAvatar(id: Long, url: String) = exec("UPDATE users SET avatar_url=? WHERE id=?", url, id)
+
     fun updateUserAddress(id: Long, address: String) = exec("UPDATE users SET address=? WHERE id=?", address.trim(), id)
 
     fun userCount(): Int = count("users")
@@ -425,6 +437,26 @@ class Database(file: File = defaultFile()) {
         f.specialtyProduce.enc(), json.encodeToString(longList, f.productIds), f.tourId, f.rating, f.reviewsCount,
         f.generation, f.hectares, f.gallery.enc(),
     )
+
+    fun updateFarmerPhoto(id: Int, url: String) = exec("UPDATE farmers SET photo_url=? WHERE id=?", url, id)
+    fun updateFarmerBanner(id: Int, url: String) = exec("UPDATE farmers SET farm_banner_url=? WHERE id=?", url, id)
+    fun updateFarmerStory(id: Int, storyQuote: String, biography: String) =
+        exec("UPDATE farmers SET story_quote=?, full_biography=? WHERE id=?", storyQuote.trim(), biography.trim(), id)
+
+    /** Adds a tour owned by a farm; the farm's main tour is set if it has none. Returns the new id. */
+    fun createTour(t: FarmTour): Int = tx {
+        val id = query("SELECT COALESCE(MAX(id),0)+1 FROM tours") { it.getInt(1) }.first()
+        saveTour(t.copy(id = id))
+        t.farmerId?.let { exec("UPDATE farmers SET tour_id=? WHERE id=? AND (tour_id IS NULL OR tour_id=0)", id, it) }
+        id
+    }
+
+    /** Adds a fruit-picking orchard owned by a farm. Returns the new id. */
+    fun createOrchard(f: FruitPickingItem): Int = tx {
+        val id = query("SELECT COALESCE(MAX(id),0)+1 FROM fruit_picking") { it.getInt(1) }.first()
+        saveFruit(f.copy(id = id))
+        id
+    }
 
     /** Short farm label such as "Sunnyvale Farm" (first two words of the farm name). */
     private fun farmKey(farmName: String) = farmName.split(" ").take(2).joinToString(" ")
@@ -465,9 +497,9 @@ class Database(file: File = defaultFile()) {
 
     private fun saveTour(t: FarmTour) = exec(
         insertSql("tours", listOf("id", "name", "location", "rating", "reviews_count", "price_per_person",
-            "operating_hours", "amenities", "activities", "image_url", "description", "highlight_tag", "farmer_name", "thumbnails")),
+            "operating_hours", "amenities", "activities", "image_url", "description", "highlight_tag", "farmer_name", "thumbnails", "farmer_id")),
         t.id, t.name, t.location, t.rating, t.reviewsCount, t.pricePerPerson, t.operatingHours, t.amenities.enc(),
-        t.activities.enc(), t.imageUrl, t.description, t.highlightTag, t.farmerName, t.thumbnails.enc(),
+        t.activities.enc(), t.imageUrl, t.description, t.highlightTag, t.farmerName, t.thumbnails.enc(), t.farmerId,
     )
 
     fun tours(): List<FarmTour> = query("SELECT * FROM tours ORDER BY id") { r ->
@@ -481,9 +513,9 @@ class Database(file: File = defaultFile()) {
 
     private fun saveFruit(f: FruitPickingItem) = exec(
         insertSql("fruit_picking", listOf("id", "title", "farm_name", "location", "fruit_name", "price_per_person",
-            "rating", "reviews_count", "duration", "seasonal_fruits", "image_url", "description", "season_availability", "thumbnails")),
+            "rating", "reviews_count", "duration", "seasonal_fruits", "image_url", "description", "season_availability", "thumbnails", "farmer_id")),
         f.id, f.title, f.farmName, f.location, f.fruitName, f.pricePerPerson, f.rating, f.reviewsCount, f.duration,
-        f.seasonalFruits, f.imageUrl, f.description, f.seasonAvailability, f.thumbnails.enc(),
+        f.seasonalFruits, f.imageUrl, f.description, f.seasonAvailability, f.thumbnails.enc(), f.farmerId,
     )
 
     fun fruitPicking(): List<FruitPickingItem> = query("SELECT * FROM fruit_picking ORDER BY id") { r ->

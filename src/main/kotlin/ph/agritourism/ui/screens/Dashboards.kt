@@ -144,12 +144,36 @@ fun AdminDashboard(s: AppState) {
             }
         }
     }
+    GlassCard {
+        SectionHeader("Partner Farmers", "Click a photo to change it")
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            s.farmers.forEach { f ->
+                Column(Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    EditableAvatar(f.photoUrl, 72.dp) { pickImageFile("Choose photo for ${f.name}")?.let { s.changeFarmerPhoto(f.id, it) } }
+                    Spacer(Modifier.height(6.dp))
+                    Text(f.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(f.farmName, fontSize = 10.sp, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun FarmerDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        EditableAvatar(s.avatar, 64.dp) { pickImageFile("Choose your profile photo")?.let(s::changeAvatar) }
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) { H1("Welcome, ${s.displayName}"); Sub(s.myFarm?.let { "${it.farmName} · ${it.location}" } ?: "No farm linked to this account") }
+        if (s.myFarm != null) {
+            SecondaryButton("Edit Story", icon = Icons.Outlined.Edit) { s.isEditStoryOpen = true }
+            Spacer(Modifier.width(8.dp))
+            SecondaryButton("Add Tour", icon = Icons.Outlined.Explore) { s.isAddTourModalOpen = true }
+            Spacer(Modifier.width(8.dp))
+            SecondaryButton("Add Fruit Picking", icon = Icons.Outlined.AutoAwesome) { s.isAddOrchardModalOpen = true }
+            Spacer(Modifier.width(8.dp))
+        }
         PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -220,6 +244,8 @@ fun FarmerDashboard(s: AppState) {
 @Composable
 fun TouristDashboard(s: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        EditableAvatar(s.avatar, 64.dp) { pickImageFile("Choose your profile photo")?.let(s::changeAvatar) }
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) { H1("Hello, ${s.displayName.substringBefore(" ")}!"); Sub("Where do you want to go today?") }
         PrimaryButton("Book a Tour", icon = Icons.Outlined.Explore) { s.navigate(Page.FARM_DETAIL) }
     }

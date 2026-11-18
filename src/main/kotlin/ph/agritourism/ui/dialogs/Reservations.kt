@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -162,7 +161,7 @@ internal fun BookingDossier(s: AppState, b0: Booking) {
             Row { Text("📄 Tourist Uploaded Documents & Dossier", fontWeight = FontWeight.ExtraBold, color = Palette.Deep); Spacer(Modifier.weight(1f)); Pill(if (b.uploadedIdDoc != null) "ID on file" else "No ID on file") }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoTile("Uploaded Valid ID", b.uploadedIdDoc ?: "Not uploaded", Icons.Outlined.VerifiedUser, Modifier.weight(1f))
-                InfoTile("Payment Verification Proof", b.uploadedReceiptDoc ?: "Not uploaded (${b.paymentMethod ?: "payment method not set"})", Icons.Outlined.CreditCard, Modifier.weight(1f))
+                InfoTile("Payment", b.uploadedReceiptDoc ?: b.paymentMethod ?: "Payment method not set", Icons.Outlined.CreditCard, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoTile("Special Requests & Notes", b.specialRequests ?: "No special dietary or accessibility requests.", modifier = Modifier.weight(1f))
@@ -207,7 +206,7 @@ internal fun OrderDossier(s: AppState, id: String) {
     val o = s.farmerOrders.firstOrNull { it.id == id } ?: return
     val close = { s.selectedOrderForView = null }
     Modal(close, 680.dp) {
-        ModalHeader("Produce Order Dossier #${o.orderNumber}", "Tourist Order & GCash Verification", Icons.Outlined.Inventory2, close)
+        ModalHeader("Produce Order Dossier #${o.orderNumber}", "Tourist Order & Payment", Icons.Outlined.Inventory2, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) { Label("Customer"); Text(o.customerName, fontWeight = FontWeight.ExtraBold); Sub(o.customerPhone); Sub(o.customerAddress) }
@@ -217,8 +216,6 @@ internal fun OrderDossier(s: AppState, id: String) {
             Label("Ordered Items:")
             o.items.forEach { Row { Text("${it.productName} × ${it.qty}", Modifier.weight(1f), fontSize = 13.sp); Text("$PESO${money(it.qty * it.unitPrice)}", fontWeight = FontWeight.Bold) } }
             Row { Label("Payment"); Spacer(Modifier.weight(1f)); Pill(o.paymentStatus, Color(0xFFDCFCE7), Color(0xFF166534)) }
-            if (o.uploadedReceiptUrl.isNotBlank()) AsyncImage(o.uploadedReceiptUrl, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)), ContentScale.Fit, "Uploaded Receipt")
-            else Sub("No payment proof uploaded for this order.")
             Label("Update Order Status:")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ORDER_STATUSES.forEach { (st, l) ->

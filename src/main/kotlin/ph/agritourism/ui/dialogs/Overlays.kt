@@ -20,9 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ph.agritourism.model.Role
 import ph.agritourism.ui.*
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 @Composable
 fun Overlays(s: AppState) {
@@ -43,6 +40,10 @@ fun Overlays(s: AppState) {
     s.selectedFarmerForModal?.let { FarmerStoryModal(s, it) }
     s.selectedReceipt?.let { ReceiptModal(s, it) }
     s.selectedBookingForTicket?.let { TicketModal(s, it) }
+    s.catalogPreview?.let { CatalogPreviewModal(s, it) }
+    if (s.isAddTourModalOpen) AddActivityModal(s, orchard = false)
+    if (s.isAddOrchardModalOpen) AddActivityModal(s, orchard = true)
+    if (s.isEditStoryOpen) s.myFarm?.let { EditStoryModal(s, it) }
 }
 
 // ------------------------------------------------------------------ notifications
@@ -123,7 +124,14 @@ private fun ProfileModal(s: AppState) {
     Modal(close, 440.dp) {
         ModalHeader("Profile Information", onClose = close)
         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Avatar(s.avatar, 96.dp)
+            Box(contentAlignment = Alignment.BottomEnd) {
+                Avatar(s.avatar, 96.dp)
+                IconButton({ pickImageFile("Choose profile photo")?.let(s::changeAvatar) },
+                    Modifier.size(32.dp).clip(CircleShape).background(Palette.Forest).handCursor()) {
+                    Icon(Icons.Outlined.PhotoCamera, "Change photo", Modifier.size(16.dp), tint = Color.White)
+                }
+            }
+            TextButton({ pickImageFile("Choose profile photo")?.let(s::changeAvatar) }, Modifier.handCursor()) { Text("Change Photo", fontWeight = FontWeight.Bold) }
             var name by remember { mutableStateOf(s.displayName) }
             var phone by remember { mutableStateOf(s.currentUser?.phone.orEmpty()) }
             var error by remember { mutableStateOf<String?>(null) }
@@ -153,10 +161,7 @@ private fun AddProductModal(s: AppState) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Label("Product Photo · JPG, PNG or presets")
                     SecondaryButton("Upload Picture from Device", icon = Icons.Outlined.Upload) {
-                        val fd = FileDialog(null as Frame?, "Choose product photo", FileDialog.LOAD)
-                        fd.setFilenameFilter { _, n -> n.lowercase().let { it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".webp") || it.endsWith(".jfif") } }
-                        fd.isVisible = true
-                        if (fd.file != null) s.uploadProductImage(File(fd.directory, fd.file))
+                        pickImageFile("Choose product photo")?.let(s::uploadProductImage)
                     }
                     Sub("Or choose fresh harvest preset:")
                     val presets = listOf("Carabao Mango" to s.images.presetMangoImage, "Organic Tomatoes" to s.images.presetTomatoImage,

@@ -9,7 +9,13 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -183,6 +189,22 @@ fun FarmersStoriesPage(s: AppState) {
 
 @Composable
 fun CatalogHome(s: AppState) {
+    if (!s.isLoggedIn) {
+        Box(Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(24.dp))) {
+            AsyncImage(s.images.farmLifeBannerPhoto, Modifier.fillMaxSize(), contentDescription = "Philippine farm")
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color(0xE60B2512), Color(0x660B2512)))))
+            Column(Modifier.align(Alignment.CenterStart).padding(32.dp).widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill("Welcome to AgriTourism Philippines", Color.White.copy(alpha = 0.15f), Color(0xFFBBF7D0))
+                Text("Visit local farms, pick your own fruit and buy fresh harvests", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text("Browse every farm, product and orchard below. Click any picture to read its full description. Log in when you're ready to book or buy.",
+                    color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryButton("Go to Login Page to Explore More", icon = Icons.AutoMirrored.Outlined.Login, color = Color(0xFF22C55E)) { s.navigate(Page.LOGIN) }
+                    PrimaryButton("Create Account", icon = Icons.Outlined.PersonAdd, color = Color.White.copy(alpha = 0.18f)) { s.navigate(Page.SIGNUP) }
+                }
+            }
+        }
+    }
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { H1("AgriTourism Desktop Catalog"); Sub("Browse farm destinations, local farm products, and fruit orchards (Picture & Description View)") }
@@ -212,6 +234,54 @@ fun CatalogHome(s: AppState) {
             ShowcaseCard(o.imageUrl, o.fruitName.ifBlank { o.title }, o.farmName, "${o.location}\n${o.description}") { s.openCatalogOrchard(o) }
         }
     }
+    SectionHeader("What Tourists Say", "Reviews from visitors to our partner farms") { Pill("${s.reviews.size} reviews") }
+    TouristReviewGrid(s.reviews.sortedByDescending { it.id }.take(6))
+    FaqSection(s)
+}
+
+@Composable
+private fun TouristReviewGrid(reviews: List<ph.agritourism.model.CustomerReview>) {
+    if (reviews.isEmpty()) { Sub("No reviews yet."); return }
+    Grid(reviews, 3) { r ->
+        GlassCard {
+            Row { repeat(5) { i -> Icon(Icons.Filled.Star, null, Modifier.size(16.dp), tint = if (i < r.rating) Palette.Amber else Color(0xFFE2E8F0)) } }
+            Spacer(Modifier.height(8.dp))
+            Text("“${r.comment}”", fontSize = 13.sp, fontStyle = FontStyle.Italic, color = Color(0xFF334155), maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(10.dp))
+            Text(r.author, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Palette.Deep)
+            Text("${r.farmOrCrop} · ${r.date}", fontSize = 11.sp, color = Palette.Forest, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Help center: frequently asked questions (stored in the faqs table). */
+@Composable
+fun FaqSection(s: AppState) {
+    SectionHeader("Help & FAQs", "Answers to common questions about booking, payment and accounts")
+    GlassCard(Modifier.fillMaxWidth(), padding = 8.dp) {
+        if (s.faqs.isEmpty()) Sub("No FAQs yet.", Modifier.padding(12.dp))
+        s.faqs.forEachIndexed { i, f ->
+            var open by remember(f.id) { mutableStateOf(false) }
+            if (i > 0) HorizontalDivider(color = Palette.Border)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).handCursor().clickable { open = !open }.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.HelpOutline, null, Modifier.size(18.dp), tint = Palette.Forest)
+                    Spacer(Modifier.width(10.dp))
+                    Text(f.question, Modifier.weight(1f), fontWeight = FontWeight.Bold, color = Palette.Deep)
+                    Icon(if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (open) "Collapse" else "Expand", tint = Palette.Muted)
+                }
+                AnimatedVisibility(open, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                    Text(f.answer, Modifier.padding(start = 28.dp, top = 8.dp), fontSize = 13.sp, color = Color(0xFF334155))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HelpPage(s: AppState) {
+    Column { H1("Help Center"); Sub("Can't find what you need? Ask the farm directly using the contact details on its profile.") }
+    FaqSection(s)
 }
 
 @Composable

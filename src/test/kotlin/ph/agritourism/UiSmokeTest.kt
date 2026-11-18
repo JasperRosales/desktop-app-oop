@@ -66,6 +66,10 @@ class UiSmokeTest {
             o?.let { { s.selectedOrderForView = it } },
             o?.let { { s.selectedOrderForTracking = it } },
             o?.let { { s.printOrderReceipt(it) } },
+            { s.catalogPreview = CatalogPreview(s.tours[0].imageUrl, "Tag", s.tours[0].name, s.tours[0].description, listOf("Price" to "1")) },
+            if (s.isFarmer) ({ s.isAddTourModalOpen = true }) else null,
+            if (s.isFarmer) ({ s.isAddOrchardModalOpen = true }) else null,
+            if (s.isFarmer) ({ s.isEditStoryOpen = true }) else null,
         )
         overlays.forEach { open ->
             step { open() }
@@ -75,6 +79,7 @@ class UiSmokeTest {
                 s.isAddBookingModalOpen = false; s.selectedBookingForView = null; s.selectedBookingForTicket = null
                 s.editingBooking = null; s.reviewingBooking = null; s.deletingBookingId = null
                 s.selectedOrderForView = null; s.selectedOrderForTracking = null; s.selectedReceipt = null
+                s.catalogPreview = null; s.isAddTourModalOpen = false; s.isAddOrchardModalOpen = false; s.isEditStoryOpen = false
             }
         }
         if (role != null) { step { s.signOut() } }
