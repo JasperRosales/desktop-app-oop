@@ -33,9 +33,12 @@ fun FarmerProfilePage(s: AppState) {
     Box(Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(24.dp))) {
         AsyncImage(f.farmBannerUrl.ifBlank { s.images.farmerProfileBanner }, Modifier.fillMaxSize(), contentDescription = f.farmName)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE60B2512)))))
-        if (f.certifications.isNotEmpty()) Pill("🛡 ${f.certifications.first()}", Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopEnd).padding(16.dp))
+        Row(Modifier.align(Alignment.TopEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (f.certifications.isNotEmpty()) Pill("🛡 ${f.certifications.first()}", Color.White.copy(alpha = 0.92f), Palette.Deep)
+            SecondaryButton("Change Cover Photo", icon = Icons.Outlined.PhotoCamera) { pickImageFile("Choose farm cover photo")?.let { s.changeFarmBanner(f.id, it) } }
+        }
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.Bottom) {
-            Avatar(f.photoUrl.ifBlank { s.avatar }, 96.dp)
+            EditableAvatar(f.photoUrl.ifBlank { s.avatar }, 96.dp) { pickImageFile("Choose your profile photo")?.let(s::changeAvatar) }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -43,7 +46,7 @@ fun FarmerProfilePage(s: AppState) {
                     Pill(f.roleTitle, Color(0xFFFEF3C7), Color(0xFF92400E))
                 }
                 Text("📍 ${f.farmName} · ${f.location}", color = Color(0xFFBBF7D0), fontSize = 13.sp)
-                if (f.storyQuote.isNotBlank()) Text(f.storyQuote, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
+                Text(f.storyQuote.ifBlank { "Add a short story so tourists get to know you." }, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Add Farm Product with Photo", icon = Icons.Filled.Add, color = Color(0xFF22C55E)) { s.isAddProductModalOpen = true }
@@ -65,7 +68,11 @@ fun FarmerProfilePage(s: AppState) {
         }
     }
     SectionHeader("Farmer's Tour & Fruit Picking Experiences", "Booking schedules operated at ${f.farmName}") {
-        PrimaryButton("Create Tour Booking", icon = Icons.Filled.Add) { s.isAddBookingModalOpen = true }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrimaryButton("Add Tour", icon = Icons.Outlined.Explore) { s.isAddTourModalOpen = true }
+            PrimaryButton("Add Fruit Picking", icon = Icons.Outlined.AutoAwesome, color = Color(0xFF15803D)) { s.isAddOrchardModalOpen = true }
+            SecondaryButton("Walk-in Booking", icon = Icons.Outlined.CalendarMonth) { s.isAddBookingModalOpen = true }
+        }
     }
     if (s.myTours.isEmpty() && s.myOrchards.isEmpty()) Sub("No tours or orchards listed for your farm yet.")
     Grid(s.myTours, 3) { t ->
@@ -87,9 +94,16 @@ fun FarmerProfilePage(s: AppState) {
         }
     }
     if (s.myOrchards.isNotEmpty()) Grid(s.myOrchards, 3) { o ->
-        GlassCard {
-            Text(o.title, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Sub("${o.fruitName} · ${o.seasonAvailability}"); Text("★ ${o.rating} (${o.reviewsCount}) · $PESO${o.pricePerPerson}/picker", fontSize = 12.sp, color = Palette.Forest)
+        GlassCard(padding = 0.dp) {
+            Box(Modifier.fillMaxWidth().height(150.dp)) {
+                AsyncImage(o.imageUrl, Modifier.fillMaxSize())
+                Pill("Fruit Picking", Color(0xFFFEF3C7), Color(0xFF92400E), Modifier.align(Alignment.TopEnd).padding(10.dp))
+            }
+            Column(Modifier.padding(14.dp)) {
+                Text(o.title, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Sub("${o.fruitName} · ${o.seasonAvailability}"); Sub(o.description, maxLines = 2)
+                Text("★ ${o.rating} (${o.reviewsCount}) · $PESO${o.pricePerPerson}/picker", fontSize = 12.sp, color = Palette.Forest)
+            }
         }
     }
     SectionHeader("Tourist Reviews", "What visitors say about your tours and orchards") { Pill("${tourReviews.size} reviews") }
@@ -115,8 +129,14 @@ fun FarmerProfilePage(s: AppState) {
         }
     }
     GlassCard {
-        H2("About ${f.farmName}")
+        SectionHeader("About ${f.farmName}", "Your short story and farm description") {
+            PrimaryButton("Edit Story & Description", icon = Icons.Outlined.Edit) { s.isEditStoryOpen = true }
+        }
         Spacer(Modifier.height(6.dp))
+        Label("Short Story")
+        Text(f.storyQuote.ifBlank { "No short story yet." }, fontSize = 13.sp, color = Color(0xFF334155), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+        Spacer(Modifier.height(8.dp))
+        Label("Description")
         Text(f.fullBiography.ifBlank { "Tell tourists about your farm — its history, what you grow and how you farm." }, fontSize = 13.sp, color = Color(0xFF334155))
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

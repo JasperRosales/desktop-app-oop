@@ -65,6 +65,11 @@ the release. If Windows still shows a SmartScreen warning, check the SHA-256 has
 - No double bookings: a customer can hold only one active booking per date and time slot. This is
   enforced by a unique index in SQLite as well as in the app.
 - Admins can inspect/query tables in **View → SQL Database Studio**.
+- Guests can browse the opening page without an account: clicking a picture opens its full description,
+  with a button to go to the login page. Tourist reviews and Help & FAQs (`faqs` table) are at the bottom.
+- Every user can set a profile photo (stored in `users.avatar_url`; uploads are copied next to the database
+  in `uploads/`). Farmers can also change their cover photo, edit their short story and description, and
+  add their own tours and fruit-picking experiences. Admins can change any farmer's photo from the dashboard.
 - Release builds also attach a pre-seeded `agritourism.db` to the GitHub release. Point
   `AGRITOURISM_DB` at that file to run the app against it.
 

@@ -33,7 +33,9 @@ private fun AuthLayout(s: AppState, form: @Composable ColumnScope.() -> Unit) {
     Row(Modifier.fillMaxWidth().height(720.dp).clip(RoundedCornerShape(28.dp)).background(Color.White)) {
         Box(Modifier.weight(1.1f).fillMaxHeight()) {
             Crossfade(s.currentSlide, animationSpec = tween(900)) { i ->
-                AsyncImage(s.farmers[i].farmBannerUrl, Modifier.fillMaxSize(), contentDescription = s.farmers[i].farmName, fallback = s.images.farmerProfileBanner)
+                // The photo is the same farmer whose story is shown below.
+                val f = s.farmers[i]
+                AsyncImage(f.photoUrl.ifBlank { f.farmBannerUrl }, Modifier.fillMaxSize(), contentDescription = f.name, fallback = s.images.farmerProfileBanner)
             }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x55000000), Color.Transparent, Color(0xCC000000)))))
             // Farmer story for the current slide
@@ -44,8 +46,6 @@ private fun AuthLayout(s: AppState, form: @Composable ColumnScope.() -> Unit) {
                     Text("“${f.storyQuote}”", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(f.photoUrl, 44.dp)
-                        Spacer(Modifier.width(10.dp))
                         Column {
                             Text(f.name, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                             Text("${f.farmName} · ${f.province}", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 1,

@@ -104,7 +104,7 @@ fun MyBookingsPage(s: AppState) {
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Label("Tourist Uploads:")
                     Pill("🛡 ${b.uploadedIdDoc ?: "No ID uploaded"}", Color.White)
-                    Pill("💳 ${b.uploadedReceiptDoc ?: "No payment proof uploaded"}", Color.White)
+                    Pill("💳 ${b.uploadedReceiptDoc ?: b.paymentMethod ?: "Payment method not set"}", Color.White)
                     val req = b.specialRequests
                     if (req != null) Text("\"$req\"", Modifier.weight(1f), fontSize = 11.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     else Spacer(Modifier.weight(1f))
@@ -166,11 +166,10 @@ fun FarmerOrdersPage(s: AppState) {
                     Row { Text("Total Amount:", Modifier.weight(1f), fontWeight = FontWeight.Bold); Text("$PESO${money(o.totalAmount)}", fontWeight = FontWeight.ExtraBold, color = Palette.Forest) }
                 }
                 Column(Modifier.weight(1f)) {
-                    Label("Tourist Uploaded Receipt")
+                    Label("Payment")
                     Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFF8FAFC)).clickable { s.selectedOrderForView = o }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (o.uploadedReceiptUrl.isNotBlank()) { AsyncImage(o.uploadedReceiptUrl, Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)), contentDescription = "Receipt preview"); Spacer(Modifier.width(8.dp)) }
                         Column {
-                            Text(if (o.uploadedReceiptUrl.isNotBlank()) "${o.paymentMethod} Receipt" else "No receipt uploaded (${o.paymentMethod})", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("${o.paymentStatus} · $PESO${money(o.totalAmount)}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text("Click to open order details →", fontSize = 11.sp, color = Palette.Forest)
                         }
                     }

@@ -113,3 +113,13 @@ fun AsyncImage(src: String, modifier: Modifier = Modifier, contentScale: Content
         })
     }
 }
+
+private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "webp", "jfif")
+
+/** Opens a native file chooser for a photo; returns the picked file or null if cancelled. */
+fun pickImageFile(title: String): File? {
+    val fd = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.LOAD)
+    fd.setFilenameFilter { _, n -> n.substringAfterLast('.').lowercase() in IMAGE_EXTS }
+    fd.isVisible = true
+    return fd.file?.let { File(fd.directory, it) }
+}

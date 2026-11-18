@@ -288,7 +288,10 @@ class FlowTest {
         // Signed out: only public pages; actions redirect to login.
         assertFalse(s.canAccess(Page.DASHBOARD)); s.navigate(Page.SQL_STUDIO); assertEquals(Page.LOGIN, s.activePage)
         listOf(Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES).forEach { assertFalse(s.canAccess(it), "guest $it") }
-        s.openCatalogTour(s.tours[0]); assertEquals(Page.LOGIN, s.activePage); assertFalse(s.isTourModalOpen)
+        // Guests get a picture & description preview instead of being sent to the login page.
+        s.activePage = Page.HOME
+        s.openCatalogTour(s.tours[0]); assertEquals(Page.HOME, s.activePage); assertFalse(s.isTourModalOpen)
+        assertEquals(s.tours[0].description, s.catalogPreview?.description); s.catalogPreview = null
         s.bookingAction(102L, "Confirmed"); assertEquals("Pending", s.bookings.first { it.id == 102L }.status)
 
         // Tourist: own data only, no staff actions or admin pages.
@@ -410,5 +413,45 @@ class FlowTest {
         s.addToCart(s.products.first { it.name == "Pedro Rice" }); s.deliveryAddress = "Manila"; s.placeOrder()
         assertEquals("pedro@farm.ph", s.notifications.first().recipientEmail)
         s.loginAs(Role.FARMER); assertTrue(s.roleFilteredNotifications.none { it.recipientEmail == "pedro@farm.ph" })
+    }
+
+    @Test fun farmerAddsToursStoryAndPhotos() {
+        s.loginAs(Role.FARMER)
+        val farm = s.myFarm!!
+        val tours0 = s.tours.size; val orchards0 = s.fruitPicking.size
+        assertNotNull(s.createTour(AppState.ActivityDraft("", "300", "A lovely walk around the farm", "", "08:00 AM"))) // name required
+        assertNotNull(s.createTour(AppState.ActivityDraft("Walk", "300", "A lovely walk around the farm", "", "25:00 AM"))) // bad slot
+        assertNull(s.createTour(AppState.ActivityDraft("Sunrise Walk", "300", "A lovely walk around the farm", "", "07:30 am - Sunrise")))
+        val tour = s.tours.last()
+        assertEquals(tours0 + 1, s.tours.size); assertEquals(farm.id, tour.farmerId); assertEquals(listOf("07:30 AM - Sunrise"), s.slotsFor("tour", tour.id))
+        assertTrue(tour in s.myTours)
+        assertNotNull(s.createOrchard(AppState.ActivityDraft("Mango Picking", "250", "Pick sweet mangoes from the tree", "", "09:00 AM"))) // fruit required
+        assertNull(s.createOrchard(AppState.ActivityDraft("Mango Picking", "250", "Pick sweet mangoes from the tree", "", "09:00 AM", fruit = "Mango")))
+        assertEquals(orchards0 + 1, s.fruitPicking.size); assertEquals(farm.id, s.fruitPicking.last().farmerId)
+
+        assertNull(s.saveFarmStory(farm.id, "Farming is family.", "Three generations of rice and mango growers."))
+        assertNotNull(s.saveFarmStory(farm.id + 1, "x", "y")) // not my farm
+        assertNotNull(s.saveFarmStory(farm.id, "x".repeat(300), "y"))
+
+        val img = File.createTempFile("pic", ".png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        s.changeAvatar(img)
+        assertTrue(s.avatar.startsWith("file:")); assertEquals(s.avatar, s.myFarm!!.photoUrl)
+
+        val r = reopen()
+        assertEquals("Farming is family.", r.farmers.first { it.id == farm.id }.storyQuote)
+        assertTrue(r.tours.any { it.name == "Sunrise Walk" && it.farmerId == farm.id })
+        assertTrue(r.farmers.first { it.id == farm.id }.photoUrl.startsWith("file:"))
+        img.delete()
+    }
+
+    @Test fun touristCanChangePhotoAndFaqsAreSeeded() {
+        assertTrue(s.faqs.isNotEmpty())
+        assertTrue(s.farmerOrders.none { it.uploadedReceiptUrl.contains("receipt.png") })
+        s.loginAs(Role.USER)
+        val before = s.avatar
+        val img = File.createTempFile("pic", ".jpg").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        s.changeAvatar(img)
+        assertNotEquals(before, s.avatar); assertEquals(s.avatar, db.findUser(Role.USER.email)!!.avatarUrl)
+        img.delete()
     }
 }

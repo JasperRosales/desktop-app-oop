@@ -554,3 +554,14 @@ fun ReviewList(reviews: List<ph.agritourism.model.CustomerReview>, empty: String
         }
     }
 }
+
+/** Avatar with a camera button that lets the user pick a new photo. */
+@Composable
+fun EditableAvatar(src: String, size: Dp, onEdit: () -> Unit) {
+    Box(contentAlignment = Alignment.BottomEnd) {
+        Box(Modifier.handCursor().clickable(onClick = onEdit)) { Avatar(src, size) }
+        IconButton(onEdit, Modifier.size(size / 3).clip(CircleShape).background(Palette.Forest).border(2.dp, Color.White, CircleShape).handCursor()) {
+            Icon(Icons.Outlined.PhotoCamera, "Change photo", Modifier.size(size / 6), tint = Color.White)
+        }
+    }
+}

@@ -82,10 +82,6 @@ private fun TopBar(s: AppState) {
         if (s.isLoggedIn) {
             BadgedIcon(Icons.Outlined.Notifications, s.unreadCount, "Notifications") { s.isNotificationsOpen = !s.isNotificationsOpen }
             Spacer(Modifier.width(8.dp))
-            if (s.isStaff) {
-                val active = s.visibleOrders.count { it.fulfillmentStatus != "Delivered" }
-                BadgedIcon(Icons.Outlined.Inventory2, active, "Tourist Produce Orders & Deliveries") { s.navigate(Page.FARMER_ORDERS) }
-            }
             if (s.isTourist) {
                 Row(Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp))
                     .handCursor().clickable { s.checkoutStep = 1; s.navigate(Page.CART_CHECKOUT) }.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -161,6 +157,7 @@ private fun Sidebar(s: AppState) {
                 item(Icons.Outlined.Explore, "Farm Destinations", home && s.showcaseCategory == ShowcaseCategory.PLACES) { s.openShowcase(ShowcaseCategory.PLACES) }
                 item(Icons.Outlined.Agriculture, "Fresh Produce", home && s.showcaseCategory == ShowcaseCategory.PRODUCTS) { s.openShowcase(ShowcaseCategory.PRODUCTS) }
                 item(Icons.Outlined.Eco, "Fruit Orchards", home && s.showcaseCategory == ShowcaseCategory.ORCHARDS) { s.openShowcase(ShowcaseCategory.ORCHARDS) }
+                item(Icons.Outlined.HelpOutline, "Help & FAQs", s.activePage == Page.HELP) { s.navigate(Page.HELP) }
                 if (s.isLoggedIn) item(Icons.Outlined.Monitor, "Back to Dashboard", false) { s.navigate(Page.DASHBOARD) }
             } else {
                 item(Icons.Outlined.Layers, "Dashboard", s.activePage == Page.DASHBOARD) { s.navigate(Page.DASHBOARD) }
@@ -185,6 +182,7 @@ private fun Sidebar(s: AppState) {
                     item(Icons.Outlined.Settings, "Platform Settings", s.activePage == Page.PLATFORM_SETTINGS) { s.navigate(Page.PLATFORM_SETTINGS) }
                     item(Icons.Outlined.Storage, "SQL Database", s.activePage == Page.SQL_STUDIO) { s.navigate(Page.SQL_STUDIO) }
                 }
+                item(Icons.Outlined.HelpOutline, "Help & FAQs", s.activePage == Page.HELP) { s.navigate(Page.HELP) }
             }
             if (s.isLoggedIn && s.userRole == Role.FARMER && expanded) {
                 Spacer(Modifier.height(12.dp))
@@ -292,6 +290,7 @@ private fun PageContent(s: AppState) {
                 p == Page.SQL_STUDIO -> SqlStudioPage(s)
                 p == Page.FARM_SETUP -> FarmSetupPage(s)
                 p == Page.PLATFORM_SETTINGS -> PlatformSettingsPage(s)
+                p == Page.HELP -> HelpPage(s)
             }
         }
     }

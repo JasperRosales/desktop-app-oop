@@ -19,8 +19,11 @@ import kotlin.random.Random
 
 enum class Page {
     DASHBOARD, HOME, FARM_DETAIL, FRUIT_PICKING, MARKET, FARMERS_STORIES, MY_BOOKINGS, CART_CHECKOUT,
-    ORDER_TRACKING, FARMER_ORDERS, FARMER_PRODUCTS, FARMER_PROFILE, SIGNUP, LOGIN, SQL_STUDIO, FARM_SETUP, PLATFORM_SETTINGS
+    ORDER_TRACKING, FARMER_ORDERS, FARMER_PRODUCTS, FARMER_PROFILE, SIGNUP, LOGIN, SQL_STUDIO, FARM_SETUP, PLATFORM_SETTINGS, HELP
 }
+
+/** Picture-and-description preview of a catalog item, shown to guests on the opening page. */
+data class CatalogPreview(val image: String, val tag: String, val title: String, val description: String, val details: List<Pair<String, String>> = emptyList())
 
 enum class ShowcaseCategory { ALL, PLACES, PRODUCTS, ORCHARDS }
 
@@ -68,6 +71,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var fruitPicking by mutableStateOf(db.fruitPicking())
     var farmers by mutableStateOf(db.farmers())
     var reviews by mutableStateOf(db.reviews())
+    var faqs by mutableStateOf(db.faqs())
 
     // navigation & role
     // The app starts signed out; every role-specific page and action needs a verified login.
@@ -138,6 +142,10 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var selectedOrderForTracking by mutableStateOf<FarmerOrder?>(null)
     var selectedFarmerForModal by mutableStateOf<FarmerProfile?>(null)
     var selectedReceipt by mutableStateOf<Receipt?>(null)
+    var catalogPreview by mutableStateOf<CatalogPreview?>(null)
+    var isAddTourModalOpen by mutableStateOf(false)
+    var isAddOrchardModalOpen by mutableStateOf(false)
+    var isEditStoryOpen by mutableStateOf(false)
     var toastMessage by mutableStateOf<String?>(null)
     private var toastJob: Job? = null
 
@@ -331,7 +339,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         }
 
     val avatar: String
-        get() = when (userRole) { Role.ADMIN -> images.adminAvatar; Role.FARMER -> images.juanAvatar; Role.USER -> images.mariaAvatar }
+        get() = currentUser?.avatarUrl?.takeIf { it.isNotBlank() }
+            ?: myFarm?.photoUrl?.takeIf { it.isNotBlank() }
+            ?: when (userRole) { Role.ADMIN -> images.adminAvatar; Role.FARMER -> images.juanAvatar; Role.USER -> images.mariaAvatar }
 
     // ---------------------------------------------------------------- generic
     fun showToast(msg: String) {
@@ -362,7 +372,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     /** Which pages each role may open. */
     fun canAccess(p: Page): Boolean = when (p) {
-        Page.HOME, Page.LOGIN, Page.SIGNUP -> true
+        Page.HOME, Page.LOGIN, Page.SIGNUP, Page.HELP -> true
         // Tourist pages need a login; guests only see the public catalog on the home page.
         Page.FARM_DETAIL, Page.FRUIT_PICKING, Page.MARKET, Page.FARMERS_STORIES -> isTourist || isAdmin
         Page.DASHBOARD, Page.MY_BOOKINGS -> isLoggedIn
@@ -394,23 +404,29 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     fun openShowcase(c: ShowcaseCategory) { showcaseCategory = c; activePage = Page.HOME }
 
-    /** Opens a catalog item from the home page; guests are sent to log in first. */
-    private fun fromCatalog(what: String, open: () -> Unit) {
-        when {
-            !isLoggedIn -> { showToast("Please log in or sign up to view $what."); activePage = Page.LOGIN }
-            isFarmer -> showToast("Farmer accounts manage their own farm; browsing is for tourists.")
-            else -> open()
-        }
+    /** Opens a catalog item from the home page; guests and farmers get a picture & description preview. */
+    private fun fromCatalog(preview: CatalogPreview, open: () -> Unit) {
+        if (isTourist || isAdmin) open() else catalogPreview = preview
     }
 
-    fun openCatalogTour(t: FarmTour) = fromCatalog(t.name) { selectedTour = t; isTourModalOpen = true }
-    fun openCatalogOrchard(f: FruitPickingItem) = fromCatalog(f.title) { selectedFruit = f; isFruitModalOpen = true }
-    fun openCatalogProduct(p: Product) = fromCatalog(p.name) { marketFilter = "All"; searchQuery = p.name; activePage = Page.MARKET }
+    fun openCatalogTour(t: FarmTour) = fromCatalog(CatalogPreview(t.imageUrl, t.location, t.name, t.description, listOf(
+        "Price" to "$PESO${money(t.pricePerPerson)} per person", "Hours" to t.operatingHours, "Rating" to "★ ${t.rating} (${t.reviewsCount} reviews)",
+        "Activities" to t.activities.joinToString(), "Amenities" to t.amenities.joinToString(),
+    ).filter { it.second.isNotBlank() })) { selectedTour = t; isTourModalOpen = true }
+
+    fun openCatalogOrchard(f: FruitPickingItem) = fromCatalog(CatalogPreview(f.imageUrl, f.fruitName.ifBlank { f.farmName }, f.title, f.description, listOf(
+        "Farm" to "${f.farmName} · ${f.location}", "Price" to "$PESO${money(f.pricePerPerson)} per picker", "Duration" to f.duration,
+        "Season" to f.seasonAvailability, "Fruits" to f.seasonalFruits, "Rating" to "★ ${f.rating} (${f.reviewsCount} reviews)",
+    ).filter { it.second.isNotBlank() })) { selectedFruit = f; isFruitModalOpen = true }
+
+    fun openCatalogProduct(p: Product) = fromCatalog(CatalogPreview(p.imageUrl, p.category, p.name, p.description, listOf(
+        "From" to p.farmOrigin, "Price" to "$PESO${money(p.discountedPrice)} ${p.unit}", "Stock" to if (p.stock > 0) "${p.stock} available" else "Sold out",
+    ))) { marketFilter = "All"; searchQuery = p.name; activePage = Page.MARKET }
 
     fun reloadFromDb() {
         products = db.products(); bookings = db.bookings(); farmerOrders = db.orders()
         notifications = db.notifications(); reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking()
-        farmers = db.farmers(); settings = db.settings(); images = db.images(); guides = db.guides(); couriers = db.couriers(); timeSlots = db.timeSlots()
+        farmers = db.farmers(); faqs = db.faqs(); settings = db.settings(); images = db.images(); guides = db.guides(); couriers = db.couriers(); timeSlots = db.timeSlots()
         currentUser = currentUser?.let { db.findUser(it.email) }
         if (currentUser == null && isLoggedIn) { signOut(); return }
         currentUser?.let { userRole = it.role }
@@ -440,6 +456,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         isProfileModalOpen = false; isAddProductModalOpen = false; isAddBookingModalOpen = false
         selectedBookingForView = null; selectedBookingForTicket = null; editingBooking = null; deletingBookingId = null; reviewingBooking = null
         selectedOrderForView = null; selectedOrderForTracking = null; selectedReceipt = null
+        isAddTourModalOpen = false; isAddOrchardModalOpen = false; isEditStoryOpen = false; catalogPreview = null
         activePage = Page.HOME
         showToast("Signed out successfully. Welcome to AgriTourism Philippines!")
     }
@@ -901,12 +918,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     /** Adds a time slot such as "08:00 AM - Morning Walk" to a tour or orchard; returns an error or null. */
     fun addTimeSlot(type: String, activityId: Int, label: String): String? {
         if (!canManageFarm(activityFarm(type, activityId))) return "You can only manage time slots for your own farm."
-        val l = label.trim().replace(Regex("\\s+"), " ")
-        val m = Regex("^(\\d{1,2}):(\\d{2}) ?([AaPp][Mm])(\\s*-\\s*(.+))?$").find(l) ?: return "Use a time like \"08:00 AM\" or \"08:00 AM - Morning Walk\"."
-        val (h, min, ap) = m.destructured
-        if (h.toInt() !in 1..12 || min.toInt() !in 0..59) return "That time isn't valid."
-        val name = m.groupValues[5].trim()
-        val normalized = "%02d:%s %s".format(h.toInt(), min, ap.uppercase()) + if (name.isNotEmpty()) " - $name" else ""
+        val normalized = normalizeSlot(label).getOrElse { return it.message }
         if (slotsFor(type, activityId).any { slotTime(it) == slotTime(normalized) }) return "There is already a slot at ${slotTime(normalized)}."
         db.addTimeSlot(type, activityId, normalized); timeSlots = db.timeSlots()
         showToast("Time slot \"$normalized\" added.")
@@ -972,16 +984,113 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         showToast("Successfully added \"${item.name}\" (Stock limit: $stock ${item.unit}) to your catalog!")
     }
 
-    /** Copies a picked image into the app data folder so the catalog keeps working offline. */
+    /** Copies a picked image into the app data folder (next to the database) so it keeps working offline; null on failure. */
+    fun storeUpload(file: File): String? = runCatching {
+        val dir = File(db.file.absoluteFile.parentFile, "uploads").apply { mkdirs() }
+        val dest = File(dir, "${System.currentTimeMillis()}-${file.name}")
+        file.copyTo(dest, overwrite = true)
+        "file:${dest.absolutePath}"
+    }.onFailure { showToast("Could not load that photo: ${it.message}") }.getOrNull()
+
     fun uploadProductImage(file: File) {
         if (denied(isStaff, "upload product photos")) return
-        runCatching {
-            val dir = File(Database.defaultFile().parentFile, "uploads").apply { mkdirs() }
-            val dest = File(dir, "${System.currentTimeMillis()}-${file.name}")
-            file.copyTo(dest, overwrite = true)
-            newProductImage = "file:${dest.absolutePath}"
-            showToast("Photo uploaded & saved for offline catalog!")
-        }.onFailure { showToast("Could not load that photo: ${it.message}") }
+        storeUpload(file)?.let { newProductImage = it; showToast("Photo uploaded & saved for offline catalog!") }
+    }
+
+    // ---------------------------------------------------------------- profile photos & farm story
+    /** Sets the signed-in user's profile photo; a farmer's photo is also their public farm profile photo. */
+    fun changeAvatar(file: File) {
+        val u = currentUser ?: run { denied(false, "change your photo"); return }
+        val url = storeUpload(file) ?: return
+        db.tx {
+            db.updateUserAvatar(u.id, url)
+            myFarmId?.let { db.updateFarmerPhoto(it, url) }
+        }
+        currentUser = db.findUser(u.email); farmers = db.farmers()
+        showToast("Profile photo updated!")
+    }
+
+    /** Changes a farmer's profile photo (own farm, or any farm for admins); the farmer's account uses it too. */
+    fun changeFarmerPhoto(farmId: Int, file: File) {
+        if (denied(canManageFarm(farmId), "change this farmer's photo")) return
+        val url = storeUpload(file) ?: return
+        db.tx {
+            db.updateFarmerPhoto(farmId, url)
+            db.farmerAccount(farmId)?.let { db.updateUserAvatar(it.id, url) }
+        }
+        farmers = db.farmers(); currentUser = currentUser?.let { db.findUser(it.email) }
+        showToast("Farmer photo updated!")
+    }
+
+    /** Changes a farm's banner photo (own farm, or any farm for admins). */
+    fun changeFarmBanner(farmId: Int, file: File) {
+        if (denied(canManageFarm(farmId), "change this farm's photo")) return
+        val url = storeUpload(file) ?: return
+        db.updateFarmerBanner(farmId, url); farmers = db.farmers()
+        showToast("Farm cover photo updated!")
+    }
+
+    /** Saves a farm's short story and description; returns an error or null on success. */
+    fun saveFarmStory(farmId: Int, story: String, description: String): String? {
+        if (!canManageFarm(farmId)) return "You can only edit your own farm's story."
+        if (story.trim().length > 280) return "Keep the short story under 280 characters."
+        db.updateFarmerStory(farmId, story, description); farmers = db.farmers()
+        showToast("Farm story saved!")
+        return null
+    }
+
+    // ---------------------------------------------------------------- farmer-created tours & orchards
+    data class ActivityDraft(val name: String, val price: String, val description: String, val image: String, val slot: String,
+                             val hours: String = "", val activities: String = "", val fruit: String = "", val duration: String = "", val season: String = "")
+
+    private fun draftError(d: ActivityDraft): String? = when {
+        myFarm == null -> "Only farmer accounts linked to a farm can add experiences."
+        d.name.isBlank() -> "Enter a name."
+        (d.price.toIntOrNull() ?: 0) <= 0 -> "Enter a price per person above 0."
+        d.description.trim().length < 10 -> "Write a short description (at least 10 characters)."
+        else -> null
+    }
+
+    /** Validates "08:00 AM - Name" style slot labels; returns the normalized label or an error. */
+    private fun normalizeSlot(label: String): Result<String> {
+        val l = label.trim().replace(Regex("\\s+"), " ")
+        val m = Regex("^(\\d{1,2}):(\\d{2}) ?([AaPp][Mm])(\\s*-\\s*(.+))?$").find(l)
+            ?: return Result.failure(IllegalArgumentException("Use a time like \"08:00 AM\" or \"08:00 AM - Morning Walk\"."))
+        val (h, min, ap) = m.destructured
+        if (h.toInt() !in 1..12 || min.toInt() !in 0..59) return Result.failure(IllegalArgumentException("That time isn't valid."))
+        val name = m.groupValues[5].trim()
+        return Result.success("%02d:%s %s".format(h.toInt(), min, ap.uppercase()) + if (name.isNotEmpty()) " - $name" else "")
+    }
+
+    /** Adds a farm tour to the farmer's own farm; returns an error or null on success. */
+    fun createTour(d: ActivityDraft): String? {
+        draftError(d)?.let { return it }
+        val f = myFarm!!
+        val slot = normalizeSlot(d.slot).getOrElse { return it.message }
+        val tour = FarmTour(0, d.name.trim(), f.location, 0.0, 0, d.price.toInt(), d.hours.trim().ifBlank { "8:00 AM - 5:00 PM" },
+            emptyList(), d.activities.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+            d.image.ifBlank { f.farmBannerUrl }, d.description.trim(), "New", f.name, emptyList(), f.id)
+        val id = db.tx { db.createTour(tour).also { db.addTimeSlot("tour", it, slot) } }
+        tours = db.tours(); farmers = db.farmers(); timeSlots = db.timeSlots()
+        isAddTourModalOpen = false
+        showToast("Tour \"${tour.name}\" is now listed (#$id).")
+        return null
+    }
+
+    /** Adds a fruit-picking experience to the farmer's own farm; returns an error or null on success. */
+    fun createOrchard(d: ActivityDraft): String? {
+        draftError(d)?.let { return it }
+        if (d.fruit.isBlank()) return "Enter the fruit tourists will pick."
+        val f = myFarm!!
+        val slot = normalizeSlot(d.slot).getOrElse { return it.message }
+        val item = FruitPickingItem(0, d.name.trim(), f.farmName, f.location, d.fruit.trim(), d.price.toInt(), 0.0, 0,
+            d.duration.trim().ifBlank { "2 hours" }, d.fruit.trim(), d.image.ifBlank { f.farmBannerUrl }, d.description.trim(),
+            d.season.trim().ifBlank { "Year-round" }, emptyList(), f.id)
+        val id = db.tx { db.createOrchard(item).also { db.addTimeSlot("orchard", it, slot) } }
+        fruitPicking = db.fruitPicking(); timeSlots = db.timeSlots()
+        isAddOrchardModalOpen = false
+        showToast("Fruit picking \"${item.title}\" is now listed (#$id).")
+        return null
     }
 
     // ---------------------------------------------------------------- orders

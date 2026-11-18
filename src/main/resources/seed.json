@@ -895,7 +895,7 @@
    "paymentStatus": "Paid via GCash",
    "fulfillmentStatus": "Dispatched",
    "orderDate": "Nov 19, 2026 · 10:15 AM",
-   "uploadedReceiptUrl": "res:images/receipt.png",
+   "uploadedReceiptUrl": "",
    "specialDeliveryNotes": "Please deliver fresh ripe mangoes with bubble padding.",
    "courierName": "AgriExpress Direct Logistics",
    "riderName": "Kuya Jun-Jun Ramos",
@@ -962,7 +962,7 @@
    "paymentStatus": "Paid via GCash",
    "fulfillmentStatus": "Dispatched",
    "orderDate": "Nov 19, 2026 · 08:30 AM",
-   "uploadedReceiptUrl": "res:images/receipt.png",
+   "uploadedReceiptUrl": "",
    "specialDeliveryNotes": "Call upon arrival at subdivision security guard house.",
    "courierName": "Batangas Green Courier",
    "riderName": "Kuya Arnel Gutierrez",
@@ -1028,7 +1028,7 @@
    "paymentStatus": "Paid via GCash",
    "fulfillmentStatus": "Delivered",
    "orderDate": "Nov 18, 2026 · 02:40 PM",
-   "uploadedReceiptUrl": "res:images/receipt.png",
+   "uploadedReceiptUrl": "",
    "specialDeliveryNotes": "Leave with security reception if recipient is not available.",
    "courierName": "AgriExpress Direct Logistics",
    "riderName": "Kuya Joel Bautista",
@@ -1555,5 +1555,39 @@
   "bank_name": "BDO Unibank (Batangas City Branch)",
   "bank_account_name": "AgriTourism Network PH Inc.",
   "bank_account_number": "0045-8912-3401"
- }
+ },
+  "faqs": [
+    {
+      "question": "How do I book a farm tour or fruit picking?",
+      "answer": "Create a free tourist account, then open Explore Tours or Fruit Picking. Choose a date, time slot and number of guests, pick a payment method and confirm. Your ticket appears under My Bookings."
+    },
+    {
+      "question": "Can I look around without an account?",
+      "answer": "Yes. The opening page shows every farm, product and orchard with photos and full descriptions. You only need to log in to book, buy produce or leave a review."
+    },
+    {
+      "question": "How do I pay?",
+      "answer": "Tours and orders can be paid by GCash, bank transfer, cash on delivery or at the farm. No receipt upload is needed; the farm confirms your payment."
+    },
+    {
+      "question": "Can I change or cancel a booking?",
+      "answer": "Open My Bookings to reschedule or cancel. One day before your visit we also ask you to confirm whether you will attend."
+    },
+    {
+      "question": "How long does produce delivery take?",
+      "answer": "Most orders arrive within 1-2 days. Follow your order step by step in Delivery Tracking and mark it received when it arrives."
+    },
+    {
+      "question": "How do I change my profile photo?",
+      "answer": "Click your name or photo at the top right, then choose Change Photo."
+    },
+    {
+      "question": "I'm a farmer. How do I list my farm?",
+      "answer": "Sign up and choose Farmer. You can then add your story, photos, tours, fruit-picking experiences, produce, guides and time slots from your farmer profile."
+    },
+    {
+      "question": "Who do I contact for help?",
+      "answer": "Use Forgot password on the login page for account issues, or contact the farm directly using the details on its profile."
+    }
+  ]
 }
