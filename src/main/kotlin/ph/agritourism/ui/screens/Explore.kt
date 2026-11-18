@@ -101,7 +101,7 @@ fun ProductCard(s: AppState, p: Product) {
                     color = if (soldOut) Palette.Red else Palette.Muted)
             }
             Spacer(Modifier.height(4.dp))
-            Sub(p.description, maxLines = 2)
+            Sub(p.description, maxLines = 2, minLines = 2)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("$PESO${p.discountedPrice.roundToInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Palette.Forest)
@@ -294,7 +294,7 @@ private fun ShowcaseCard(image: String, tag: String, title: String, desc: String
         Column(Modifier.padding(14.dp)) {
             Text(title, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Sub(desc, maxLines = 4)
+            Sub(desc, maxLines = 4, minLines = 4)
         }
     }
 }

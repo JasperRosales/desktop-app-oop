@@ -44,6 +44,15 @@ fun Overlays(s: AppState) {
     if (s.isAddTourModalOpen) AddActivityModal(s, orchard = false)
     if (s.isAddOrchardModalOpen) AddActivityModal(s, orchard = true)
     if (s.isEditStoryOpen) s.myFarm?.let { EditStoryModal(s, it) }
+    s.editingTour?.let { t -> key(t.id) { AddActivityModal(s, orchard = false, tour = t) } }
+    s.editingOrchard?.let { o -> key(o.id) { AddActivityModal(s, orchard = true, orchardItem = o) } }
+    s.pendingConfirm?.let { c ->
+        AlertDialog({ s.pendingConfirm = null },
+            icon = { Icon(Icons.Outlined.Delete, null, tint = Palette.Red) },
+            title = { Text(c.title) }, text = { Text(c.message) },
+            confirmButton = { PrimaryButton(c.yesLabel, color = Palette.Red) { s.pendingConfirm = null; c.action() } },
+            dismissButton = { SecondaryButton("Keep") { s.pendingConfirm = null } })
+    }
 }
 
 // ------------------------------------------------------------------ notifications
@@ -151,9 +160,11 @@ private fun ProfileModal(s: AppState) {
 // ------------------------------------------------------------------ add product
 @Composable
 private fun AddProductModal(s: AppState) {
-    val close = { s.isAddProductModalOpen = false }
+    val close = { s.isAddProductModalOpen = false; s.editingProductId = null }
+    val editing = s.editingProductId != null
     Modal(close, 620.dp) {
-        ModalHeader("Add Farm Product with Photo", "Publish organic harvest with picture to the local marketplace", Icons.Outlined.Spa, close)
+        if (editing) ModalHeader("Edit Farm Product", "Update the photo, details and description shown to customers", Icons.Outlined.Edit, close)
+        else ModalHeader("Add Farm Product with Photo", "Publish organic harvest with picture to the local marketplace", Icons.Outlined.Spa, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(s.newProductImage, Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)), contentDescription = "Product preview")
@@ -187,9 +198,16 @@ private fun AddProductModal(s: AppState) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Field("Packaging Unit", s.newProductUnit, { s.newProductUnit = it }, Modifier.weight(1f), "e.g. /kg, /bundle, /tray")
                 Field("Stock Limit (Max Inventory)", s.newProductStock, { v -> s.newProductStock = v.filter(Char::isDigit) }, Modifier.weight(1f), "e.g. 25", number = true)
+                Field("Discount (%)", s.newProductDiscount, { v -> s.newProductDiscount = v.filter(Char::isDigit).take(2) }, Modifier.weight(0.7f), "0 - 90", number = true)
             }
             Field("Description", s.newProductDesc, { s.newProductDesc = it }, placeholder = "Describe freshness, harvest method, origin...", singleLine = false, minLines = 2)
-            PrimaryButton("Save Product & Publish with Photo", Modifier.fillMaxWidth(), enabled = s.newProductName.isNotBlank() && (s.newProductStock.toIntOrNull() ?: 0) >= 1) { s.saveProduct() }
+            PrimaryButton(if (editing) "Save Changes" else "Save Product & Publish with Photo", Modifier.fillMaxWidth(),
+                enabled = s.newProductName.isNotBlank() && (s.newProductStock.toIntOrNull() ?: 0) >= (if (editing) 0 else 1)) { s.saveProduct() }
+            s.editingProductId?.let { id ->
+                SecondaryButton("Delete Product", Modifier.fillMaxWidth(), Icons.Outlined.Delete, color = Palette.Red) {
+                    s.confirm("Delete \"${s.newProductName}\"?", "It will be removed from the market and from customers' carts. Past orders keep it.") { s.deleteProduct(id) }
+                }
+            }
         }
     }
 }
@@ -247,11 +265,12 @@ fun DateField(label: String, value: String, onChange: (String) -> Unit, modifier
 @Composable
 private fun ReviewModal(s: AppState, b: ph.agritourism.model.Booking) {
     val close = { s.reviewingBooking = null }
-    var rating by remember { mutableStateOf(5) }
-    var comment by remember { mutableStateOf("") }
+    val existing = s.reviewForBooking(b.id)
+    var rating by remember { mutableStateOf(existing?.rating ?: 5) }
+    var comment by remember { mutableStateOf(existing?.comment.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     Modal(close, 520.dp) {
-        ModalHeader("Write a Review", "${b.activity} · ${b.tourDate}", Icons.Outlined.Star, close)
+        ModalHeader(if (existing != null) "Edit Your Review" else "Write a Review", "${b.activity} · ${b.tourDate}", Icons.Outlined.Star, close)
         Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Label("Your Rating")
             Row {
@@ -264,7 +283,9 @@ private fun ReviewModal(s: AppState, b: ph.agritourism.model.Booking) {
             Field("Your Review", comment, { comment = it }, Modifier.fillMaxWidth(), "Tell other tourists about your visit…", singleLine = false, minLines = 4, maxLength = 1000)
             error?.let { Text(it, color = Palette.Red, fontSize = 12.sp) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PrimaryButton("Post Review", Modifier.weight(1f), Icons.Outlined.Send) { error = s.submitReview(b.id, rating, comment) }
+                PrimaryButton(if (existing != null) "Save Changes" else "Post Review", Modifier.weight(1f), Icons.Outlined.Send) {
+                    error = if (existing != null) s.updateReview(existing.id, rating, comment) else s.submitReview(b.id, rating, comment)
+                }
                 SecondaryButton("Cancel") { close() }
             }
         }

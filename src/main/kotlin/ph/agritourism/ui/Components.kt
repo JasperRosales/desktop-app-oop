@@ -184,8 +184,8 @@ fun H1(text: String) = Text(text, fontSize = 26.sp, fontWeight = FontWeight.Extr
 @Composable
 fun H2(text: String) = Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.Deep)
 @Composable
-fun Sub(text: String, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE) =
-    Text(text, fontSize = 13.sp, color = Palette.Muted, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+fun Sub(text: String, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE, minLines: Int = 1) =
+    Text(text, fontSize = 13.sp, color = Palette.Muted, modifier = modifier, maxLines = maxLines, minLines = minLines, overflow = TextOverflow.Ellipsis)
 @Composable
 fun Label(text: String, color: Color = Palette.Muted) = Text(text.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = color, letterSpacing = 0.6.sp)
 

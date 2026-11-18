@@ -58,6 +58,10 @@ internal fun TourModal(s: AppState) {
                 Text("$PESO${t.pricePerPerson}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Forest); Text(" /person", color = Palette.Muted)
             }
             Text(t.description, fontSize = 13.sp, color = Color(0xFF334155))
+            if (s.canEditTour(t)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton("Edit Tour", icon = Icons.Outlined.Edit) { close(); s.editingTour = t }
+                SecondaryButton("Delete Tour", icon = Icons.Outlined.Delete, color = Palette.Red) { s.askDeleteTour(t) }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoTile("Operating Hours", t.operatingHours, Icons.Outlined.Schedule, Modifier.weight(1f))
                 InfoTile("Amenities", t.amenities.joinToString(), Icons.Outlined.VerifiedUser, Modifier.weight(1f))
@@ -98,6 +102,10 @@ internal fun FruitModal(s: AppState) {
             Text(f.title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Deep)
             Text("${f.farmName} · ${f.seasonAvailability}", fontSize = 13.sp, color = Palette.Forest, fontWeight = FontWeight.Bold)
             Text(f.description, fontSize = 13.sp, color = Color(0xFF334155))
+            if (s.canEditOrchard(f)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton("Edit", icon = Icons.Outlined.Edit) { close(); s.editingOrchard = f }
+                SecondaryButton("Delete", icon = Icons.Outlined.Delete, color = Palette.Red) { s.askDeleteOrchard(f) }
+            }
             Row { Label("Fruit Picking Gallery Photos"); Spacer(Modifier.weight(1f)); Label("${f.thumbnails.size} Photos") }
             Gallery(f.thumbnails)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

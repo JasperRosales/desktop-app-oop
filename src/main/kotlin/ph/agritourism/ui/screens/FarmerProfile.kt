@@ -49,7 +49,7 @@ fun FarmerProfilePage(s: AppState) {
                 Text(f.storyQuote.ifBlank { "Add a short story so tourists get to know you." }, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PrimaryButton("Add Farm Product with Photo", icon = Icons.Filled.Add, color = Color(0xFF22C55E)) { s.isAddProductModalOpen = true }
+                PrimaryButton("Add Farm Product with Photo", icon = Icons.Filled.Add, color = Color(0xFF22C55E)) { s.openAddProduct() }
                 PrimaryButton("New Tour Reservation", icon = Icons.Outlined.CalendarMonth, color = Color(0xFF2D7A45)) { s.isAddBookingModalOpen = true }
             }
         }
@@ -90,6 +90,11 @@ fun FarmerProfilePage(s: AppState) {
                     Text("$PESO${t.pricePerPerson}", fontWeight = FontWeight.ExtraBold, color = Palette.Forest); Text(" /guest", fontSize = 11.sp, color = Palette.Muted)
                     Spacer(Modifier.weight(1f)); SecondaryButton("Walk-in Booking") { s.newBookingActivity = t.name; s.isAddBookingModalOpen = true }
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SecondaryButton("Edit Tour", Modifier.weight(1f), icon = Icons.Outlined.Edit) { s.editingTour = t }
+                    IconButton({ s.askDeleteTour(t) }) { Icon(Icons.Outlined.Delete, "Delete tour", tint = Palette.Red) }
+                }
             }
         }
     }
@@ -103,17 +108,22 @@ fun FarmerProfilePage(s: AppState) {
                 Text(o.title, fontWeight = FontWeight.ExtraBold, color = Palette.Deep, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Sub("${o.fruitName} · ${o.seasonAvailability}"); Sub(o.description, maxLines = 2)
                 Text("★ ${o.rating} (${o.reviewsCount}) · $PESO${o.pricePerPerson}/picker", fontSize = 12.sp, color = Palette.Forest)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SecondaryButton("Edit", Modifier.weight(1f), icon = Icons.Outlined.Edit) { s.editingOrchard = o }
+                    IconButton({ s.askDeleteOrchard(o) }) { Icon(Icons.Outlined.Delete, "Delete experience", tint = Palette.Red) }
+                }
             }
         }
     }
     SectionHeader("Tourist Reviews", "What visitors say about your tours and orchards") { Pill("${tourReviews.size} reviews") }
     ReviewList(tourReviews.take(6), "No reviews for your farm yet.")
     SectionHeader("Harvest Catalog & Available Produce", "Fresh vegetables, fruits, and processed farm goods") {
-        PrimaryButton("Add New Farm Product", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
+        PrimaryButton("Add New Farm Product", icon = Icons.Filled.Add) { s.openAddProduct() }
     }
     if (s.farmProducts.isEmpty()) Sub("No products listed yet.")
     Grid(s.farmProducts.take(8), 4) { p ->
-        GlassCard(padding = 0.dp) {
+        GlassCard(padding = 0.dp, onClick = { s.openEditProduct(p) }) {
             Box(Modifier.fillMaxWidth().height(130.dp)) {
                 AsyncImage(p.imageUrl, Modifier.fillMaxSize())
                 Pill(p.category, Color.White.copy(alpha = 0.92f), Palette.Deep, Modifier.align(Alignment.TopStart).padding(8.dp))

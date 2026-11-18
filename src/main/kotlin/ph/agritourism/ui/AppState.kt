@@ -67,8 +67,11 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var guides by mutableStateOf(db.guides())
     var couriers by mutableStateOf(db.couriers())
     var timeSlots by mutableStateOf(db.timeSlots())
-    var tours by mutableStateOf(db.tours())
-    var fruitPicking by mutableStateOf(db.fruitPicking())
+    /** Every tour/orchard including deleted (archived) ones, so old bookings still find their farm. */
+    var allTours by mutableStateOf(db.tours())
+    var allOrchards by mutableStateOf(db.fruitPicking())
+    val tours: List<FarmTour> get() = allTours.filterNot { it.archived }
+    val fruitPicking: List<FruitPickingItem> get() = allOrchards.filterNot { it.archived }
     var farmers by mutableStateOf(db.farmers())
     var reviews by mutableStateOf(db.reviews())
     var faqs by mutableStateOf(db.faqs())
@@ -105,7 +108,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var fruitPaymentMethod by mutableStateOf("GCash")
 
     // persisted collections
-    var products by mutableStateOf(db.products())
+    /** Every product including deleted (archived) ones, so old orders still find their farm. */
+    var allProducts by mutableStateOf(db.products())
+    val products: List<Product> get() = allProducts.filterNot { it.archived }
     var bookings by mutableStateOf(db.bookings())
     var farmerOrders by mutableStateOf(db.orders())
     var notifications by mutableStateOf(db.notifications())
@@ -131,6 +136,14 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     var selectedNotification by mutableStateOf<AppNotification?>(null)
     var isProfileModalOpen by mutableStateOf(false)
     var isAddProductModalOpen by mutableStateOf(false)
+    /** A pending "are you sure?" question; the dialog runs [Confirm.action] on Yes. */
+    data class Confirm(val title: String, val message: String, val yesLabel: String, val action: () -> Unit)
+    var pendingConfirm by mutableStateOf<Confirm?>(null)
+    var editingTour by mutableStateOf<FarmTour?>(null)
+    var editingOrchard by mutableStateOf<FruitPickingItem?>(null)
+    var newProductDiscount by mutableStateOf("0")
+    /** Product being edited in the product modal; null when adding a new one. */
+    var editingProductId by mutableStateOf<Long?>(null)
     var isAddBookingModalOpen by mutableStateOf(false)
     var isMockupDrawerOpen by mutableStateOf(false)
     var selectedBookingForView by mutableStateOf<Booking?>(null)
@@ -188,7 +201,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     }
 
     private fun loadCart(): List<CartItem> {
-        val byId = db.products().associateBy { it.id }
+        val byId = db.products().filterNot { it.archived }.associateBy { it.id }
         val user = currentUser?.email ?: return emptyList()
         return db.cart(user).mapNotNull { (id, q) -> byId[id]?.let { CartItem(it, q) } }
     }
@@ -272,19 +285,19 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     /** Which farm runs the tour/orchard a booking is for. */
     fun farmOf(b: Booking): Int? =
-        if (b.activityType == "orchard") fruitPicking.firstOrNull { it.id == b.farmId }?.farmerId
-        else tours.firstOrNull { it.id == b.farmId }?.farmerId
+        if (b.activityType == "orchard") allOrchards.firstOrNull { it.id == b.farmId }?.farmerId
+        else allTours.firstOrNull { it.id == b.farmId }?.farmerId
 
     /** Farms whose products are in an order. */
     fun farmsOf(o: FarmerOrder): Set<Int> {
-        val byId = products.associateBy { it.id }
+        val byId = allProducts.associateBy { it.id }
         return o.items.mapNotNull { it.productId?.let(byId::get)?.farmerId }.toSet()
     }
 
     /** Part of an order's value that belongs to the current farmer (whole order for admins). */
     fun farmShare(o: FarmerOrder): Double {
         if (!isFarmer) return o.totalAmount
-        val mine = farmProducts.map { it.id }.toSet()
+        val mine = allProducts.filter { myFarmId != null && it.farmerId == myFarmId }.map { it.id }.toSet()
         return o.items.filter { it.productId in mine }.sumOf { it.qty * it.unitPrice }
     }
 
@@ -322,7 +335,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     val farmProducts: List<Product>
         get() = when { isAdmin -> products; myFarmId != null -> products.filter { it.farmerId == myFarmId }; else -> emptyList() }
     val activeBookings: List<Booking> get() = visibleBookings.filter { it.status != "Cancelled" }
-    val openOrders: List<FarmerOrder> get() = visibleOrders.filter { it.fulfillmentStatus != "Delivered" }
+    val openOrders: List<FarmerOrder> get() = visibleOrders.filter { it.fulfillmentStatus !in setOf("Delivered", "Cancelled") }
     val totalRevenue: Double get() = visibleOrders.sumOf(::farmShare) + activeBookings.sumOf { it.totalAmount }
     val fulfillmentRate: Double get() = if (bookings.isEmpty()) 0.0 else bookings.count { it.status != "Cancelled" } * 100.0 / bookings.size
     val monthlyBookings: List<MonthPoint>
@@ -424,8 +437,8 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     ))) { marketFilter = "All"; searchQuery = p.name; activePage = Page.MARKET }
 
     fun reloadFromDb() {
-        products = db.products(); bookings = db.bookings(); farmerOrders = db.orders()
-        notifications = db.notifications(); reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking()
+        allProducts = db.products(); bookings = db.bookings(); farmerOrders = db.orders()
+        notifications = db.notifications(); reviews = db.reviews(); allTours = db.tours(); allOrchards = db.fruitPicking()
         farmers = db.farmers(); faqs = db.faqs(); settings = db.settings(); images = db.images(); guides = db.guides(); couriers = db.couriers(); timeSlots = db.timeSlots()
         currentUser = currentUser?.let { db.findUser(it.email) }
         if (currentUser == null && isLoggedIn) { signOut(); return }
@@ -453,7 +466,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         checkoutStep = 1; lastPlacedOrder = null
         isNotificationsOpen = false
         selectedNotification = null
-        isProfileModalOpen = false; isAddProductModalOpen = false; isAddBookingModalOpen = false
+        isProfileModalOpen = false; isAddProductModalOpen = false; editingProductId = null; pendingConfirm = null; editingTour = null; editingOrchard = null; isAddBookingModalOpen = false
         selectedBookingForView = null; selectedBookingForTicket = null; editingBooking = null; deletingBookingId = null; reviewingBooking = null
         selectedOrderForView = null; selectedOrderForTracking = null; selectedReceipt = null
         isAddTourModalOpen = false; isAddOrchardModalOpen = false; isEditStoryOpen = false; catalogPreview = null
@@ -626,7 +639,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         currentUser?.let { u -> if (u.address != order.customerAddress) { db.updateUserAddress(u.id, order.customerAddress); currentUser = u.copy(address = order.customerAddress) } }
         farmerOrders = listOf(order) + farmerOrders
         val bought = buying.associate { it.product.id to it.quantity }
-        products = products.map { p -> bought[p.id]?.let { p.copy(stock = max(0, p.stock - it)) } ?: p }
+        allProducts = allProducts.map { p -> bought[p.id]?.let { p.copy(stock = max(0, p.stock - it)) } ?: p }
         lastPlacedOrder = order
         activeTrackingOrderId = newOrderId
         lastOrderTotal = orderAmt
@@ -881,7 +894,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             userEmail, b.id, b.activityType, b.farmId,
         )
         try { db.addReview(review) } catch (e: Exception) { return e.message ?: "Could not save the review." }
-        reviews = db.reviews(); tours = db.tours(); fruitPicking = db.fruitPicking(); farmers = db.farmers()
+        reviews = db.reviews(); allTours = db.tours(); allOrchards = db.fruitPicking(); farmers = db.farmers()
         selectedTour = tours.firstOrNull { it.id == selectedTour.id } ?: selectedTour
         selectedFruit = fruitPicking.firstOrNull { it.id == selectedFruit.id } ?: selectedFruit
         notifyFarms(setOf(farmOf(b)), AppNotification(System.currentTimeMillis(), "New $rating★ Review: ${b.activity}",
@@ -890,6 +903,37 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         reviewingBooking = null
         showToast("Thank you! Your $rating-star review was posted.")
         return null
+    }
+
+    fun canEditReview(r: CustomerReview) = isTourist && r.userEmail?.equals(userEmail, true) == true
+    fun canDeleteReview(r: CustomerReview) = canEditReview(r) || isAdmin
+
+    /** Changes the rating/comment of the tourist's own review; returns an error or null. */
+    fun updateReview(reviewId: Int, rating: Int, comment: String): String? {
+        val r = reviews.firstOrNull { it.id == reviewId } ?: return "Review not found."
+        if (!canEditReview(r)) return "You can only edit your own reviews."
+        if (rating !in 1..5) return "Please choose a rating from 1 to 5 stars."
+        if (comment.trim().length < 10) return "Please write at least 10 characters about your visit."
+        db.updateReview(r, rating, comment.trim())
+        reloadRatings()
+        reviewingBooking = null
+        showToast("Your review was updated.")
+        return null
+    }
+
+    fun deleteReview(reviewId: Int) {
+        val r = reviews.firstOrNull { it.id == reviewId } ?: return
+        if (denied(canDeleteReview(r), "delete this review")) return
+        db.deleteReview(r)
+        reloadRatings()
+        reviewingBooking = null
+        showToast("Review deleted.")
+    }
+
+    private fun reloadRatings() {
+        reviews = db.reviews(); allTours = db.tours(); allOrchards = db.fruitPicking(); farmers = db.farmers()
+        selectedTour = tours.firstOrNull { it.id == selectedTour.id } ?: selectedTour
+        selectedFruit = fruitPicking.firstOrNull { it.id == selectedFruit.id } ?: selectedFruit
     }
 
     // ---------------------------------------------------------------- farm setup (guides & time slots)
@@ -967,21 +1011,81 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
         if (price == null || price <= 0) { showToast("Please enter a valid price."); return }
         val stock = newProductStock.toIntOrNull()
         if (stock == null || stock < 0) { showToast("Please enter a valid stock limit."); return }
+        val discount = newProductDiscount.ifBlank { "0" }.toIntOrNull()
+        if (discount == null || discount !in 0..90) { showToast("Discount must be between 0 and 90%."); return }
+        val unit = if (newProductUnit.startsWith("/")) newProductUnit else "/${newProductUnit.ifBlank { "kg" }}"
+        editingProductId?.let { id ->
+            val old = products.firstOrNull { it.id == id } ?: run { showToast("That product no longer exists."); return }
+            if (denied(canEditProduct(old), "edit this product")) return
+            val updated = old.copy(name = newProductName.trim(), category = newProductCategory, price = price, unit = unit, stock = stock, discountPercent = discount,
+                imageUrl = newProductImage.ifBlank { old.imageUrl }, description = newProductDesc.ifBlank { old.description })
+            db.updateProduct(updated)
+            allProducts = allProducts.map { if (it.id == id) updated else it }
+            cart = cart.map { if (it.product.id == id) it.copy(product = updated) else it }
+            isAddProductModalOpen = false; editingProductId = null
+            newProductName = ""; newProductDesc = ""; newProductStock = "25"
+            showToast("Saved changes to \"${updated.name}\".")
+            return
+        }
         val item = Product(
             id = System.currentTimeMillis(), name = newProductName, category = newProductCategory,
             price = price,
-            unit = if (newProductUnit.startsWith("/")) newProductUnit else "/${newProductUnit.ifBlank { "kg" }}",
-            discountPercent = 0, stock = stock, rating = 0.0, reviewsCount = 0,
+            unit = unit,
+            discountPercent = discount, stock = stock, rating = 0.0, reviewsCount = 0,
             imageUrl = newProductImage.ifBlank { images.defaultProductFallbackImage },
             description = newProductDesc.ifBlank { "Freshly harvested produce from ${myFarm?.farmName ?: "our partner farms"}." },
             farmOrigin = myFarm?.let { "${it.farmName.split(" & ").first()} (${it.province})" } ?: "AgriTourism Partner Farms",
             farmerId = myFarmId,
         )
         db.saveProduct(item, db.minSort("products") - 1)
-        products = listOf(item) + products
+        allProducts = listOf(item) + allProducts
         isAddProductModalOpen = false
         newProductName = ""; newProductDesc = ""; newProductStock = "25"
         showToast("Successfully added \"${item.name}\" (Stock limit: $stock ${item.unit}) to your catalog!")
+    }
+
+    fun canEditProduct(p: Product) = isAdmin || (myFarmId != null && p.farmerId == myFarmId)
+
+    fun openAddProduct() {
+        editingProductId = null
+        newProductName = ""; newProductDesc = ""; newProductStock = "25"; newProductPrice = "100"; newProductUnit = "kg"; newProductDiscount = "0"
+        isAddProductModalOpen = true
+    }
+
+    fun openEditProduct(p: Product) {
+        if (denied(canEditProduct(p), "edit this product")) return
+        editingProductId = p.id
+        newProductName = p.name; newProductCategory = p.category; newProductPrice = money(p.price).replace(",", "")
+        newProductUnit = p.unit; newProductStock = p.stock.toString(); newProductDesc = p.description; newProductImage = p.imageUrl
+        newProductDiscount = p.discountPercent.toString()
+        isAddProductModalOpen = true
+    }
+
+    /** Asks before running [action]. */
+    fun confirm(title: String, message: String, yesLabel: String = "Yes, Delete", action: () -> Unit) {
+        pendingConfirm = Confirm(title, message, yesLabel, action)
+    }
+
+    /** Removes a product from the market and every cart; past orders keep it. */
+    fun deleteProduct(id: Long) {
+        val p = products.firstOrNull { it.id == id } ?: return
+        if (denied(canEditProduct(p), "delete this product")) return
+        db.setArchived("products", id, true)
+        allProducts = allProducts.map { if (it.id == id) it.copy(archived = true) else it }
+        cart = cart.filterNot { it.product.id == id }
+        isAddProductModalOpen = false; editingProductId = null
+        showToast("\"${p.name}\" was removed from your catalog.")
+    }
+
+    /** Adds stock to a product without opening the full form. */
+    fun restockProduct(id: Long, amount: Int) {
+        val p = products.firstOrNull { it.id == id } ?: return
+        if (denied(canEditProduct(p), "restock this product")) return
+        if (amount <= 0) return
+        val stock = p.stock + amount
+        db.updateStock(id, stock)
+        allProducts = allProducts.map { if (it.id == id) it.copy(stock = stock) else it }
+        showToast("\"${p.name}\" restocked to $stock.")
     }
 
     /** Copies a picked image into the app data folder (next to the database) so it keeps working offline; null on failure. */
@@ -1043,8 +1147,9 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
     data class ActivityDraft(val name: String, val price: String, val description: String, val image: String, val slot: String,
                              val hours: String = "", val activities: String = "", val fruit: String = "", val duration: String = "", val season: String = "")
 
-    private fun draftError(d: ActivityDraft): String? = when {
-        myFarm == null -> "Only farmer accounts linked to a farm can add experiences."
+    private fun draftError(d: ActivityDraft): String? = if (myFarm == null) "Only farmer accounts linked to a farm can add experiences." else fieldsError(d)
+
+    private fun fieldsError(d: ActivityDraft): String? = when {
         d.name.isBlank() -> "Enter a name."
         (d.price.toIntOrNull() ?: 0) <= 0 -> "Enter a price per person above 0."
         d.description.trim().length < 10 -> "Write a short description (at least 10 characters)."
@@ -1071,7 +1176,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             emptyList(), d.activities.split(",").map { it.trim() }.filter { it.isNotEmpty() },
             d.image.ifBlank { f.farmBannerUrl }, d.description.trim(), "New", f.name, emptyList(), f.id)
         val id = db.tx { db.createTour(tour).also { db.addTimeSlot("tour", it, slot) } }
-        tours = db.tours(); farmers = db.farmers(); timeSlots = db.timeSlots()
+        allTours = db.tours(); farmers = db.farmers(); timeSlots = db.timeSlots()
         isAddTourModalOpen = false
         showToast("Tour \"${tour.name}\" is now listed (#$id).")
         return null
@@ -1087,13 +1192,125 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
             d.duration.trim().ifBlank { "2 hours" }, d.fruit.trim(), d.image.ifBlank { f.farmBannerUrl }, d.description.trim(),
             d.season.trim().ifBlank { "Year-round" }, emptyList(), f.id)
         val id = db.tx { db.createOrchard(item).also { db.addTimeSlot("orchard", it, slot) } }
-        fruitPicking = db.fruitPicking(); timeSlots = db.timeSlots()
+        allOrchards = db.fruitPicking(); timeSlots = db.timeSlots()
         isAddOrchardModalOpen = false
         showToast("Fruit picking \"${item.title}\" is now listed (#$id).")
         return null
     }
 
+    fun canEditTour(t: FarmTour) = canManageFarm(t.farmerId)
+    fun canEditOrchard(o: FruitPickingItem) = canManageFarm(o.farmerId)
+
+    /** Saves changes to a tour; returns an error or null on success. */
+    fun updateTour(id: Int, d: ActivityDraft): String? {
+        val old = tours.firstOrNull { it.id == id } ?: return "That tour no longer exists."
+        if (!canEditTour(old)) return "You can only edit your own farm's tours."
+        fieldsError(d)?.let { return it }
+        val t = old.copy(name = d.name.trim(), pricePerPerson = d.price.toInt(), description = d.description.trim(),
+            imageUrl = d.image.ifBlank { old.imageUrl }, operatingHours = d.hours.trim().ifBlank { old.operatingHours },
+            activities = d.activities.split(",").map { it.trim() }.filter { it.isNotEmpty() })
+        db.updateTour(t)
+        allTours = allTours.map { if (it.id == id) t else it }
+        if (selectedTour.id == id) selectedTour = t
+        editingTour = null
+        showToast("Tour \"${t.name}\" updated.")
+        return null
+    }
+
+    /** Saves changes to a fruit-picking experience; returns an error or null on success. */
+    fun updateOrchard(id: Int, d: ActivityDraft): String? {
+        val old = fruitPicking.firstOrNull { it.id == id } ?: return "That experience no longer exists."
+        if (!canEditOrchard(old)) return "You can only edit your own farm's orchards."
+        fieldsError(d)?.let { return it }
+        if (d.fruit.isBlank()) return "Enter the fruit tourists will pick."
+        val o = old.copy(title = d.name.trim(), pricePerPerson = d.price.toInt(), description = d.description.trim(),
+            imageUrl = d.image.ifBlank { old.imageUrl }, fruitName = d.fruit.trim(), seasonalFruits = d.fruit.trim(),
+            duration = d.duration.trim().ifBlank { old.duration }, seasonAvailability = d.season.trim().ifBlank { old.seasonAvailability })
+        db.updateOrchard(o)
+        allOrchards = allOrchards.map { if (it.id == id) o else it }
+        if (selectedFruit.id == id) selectedFruit = o
+        editingOrchard = null
+        showToast("\"${o.title}\" updated.")
+        return null
+    }
+
+    /** Upcoming non-cancelled bookings for a tour/orchard. */
+    fun upcomingBookings(type: String, id: Int): List<Booking> = bookings.filter {
+        it.activityType == type && it.farmId == id && it.status != "Cancelled" &&
+            parseTourDate(it.tourDate)?.let { d -> !d.isBefore(LocalDate.now()) } != false
+    }
+
+    fun askDeleteTour(t: FarmTour) {
+        val n = upcomingBookings("tour", t.id).size
+        confirm("Delete \"${t.name}\"?", "Tourists will no longer see or book it." +
+            if (n > 0) " $n upcoming booking(s) stay valid — contact those guests if the tour won't run." else " Past bookings are kept.") { deleteTour(t.id) }
+    }
+
+    fun askDeleteOrchard(o: FruitPickingItem) {
+        val n = upcomingBookings("orchard", o.id).size
+        confirm("Delete \"${o.title}\"?", "Tourists will no longer see or book it." +
+            if (n > 0) " $n upcoming booking(s) stay valid — contact those guests if it won't run." else " Past bookings are kept.") { deleteOrchard(o.id) }
+    }
+
+    /** Removes a tour from the catalog; existing bookings keep working. */
+    fun deleteTour(id: Int) {
+        val t = tours.firstOrNull { it.id == id } ?: return
+        if (denied(canEditTour(t), "delete this tour")) return
+        db.setArchived("tours", id.toLong(), true)
+        allTours = allTours.map { if (it.id == id) it.copy(archived = true) else it }
+        if (selectedTour.id == id) { isTourModalOpen = false; tours.firstOrNull()?.let { selectedTour = it } }
+        editingTour = null
+        showToast("Tour \"${t.name}\" removed. Existing bookings are kept.")
+    }
+
+    fun deleteOrchard(id: Int) {
+        val o = fruitPicking.firstOrNull { it.id == id } ?: return
+        if (denied(canEditOrchard(o), "delete this experience")) return
+        db.setArchived("fruit_picking", id.toLong(), true)
+        allOrchards = allOrchards.map { if (it.id == id) it.copy(archived = true) else it }
+        if (selectedFruit.id == id) { isFruitModalOpen = false; fruitPicking.firstOrNull()?.let { selectedFruit = it } }
+        editingOrchard = null
+        showToast("\"${o.title}\" removed. Existing bookings are kept.")
+    }
+
     // ---------------------------------------------------------------- orders
+    /** Tourists can cancel before packing starts; farms and admins until it is out for delivery. */
+    fun canCancelOrder(o: FarmerOrder): Boolean = !o.isReceivedByUser && when {
+        ownsOrder(o) -> o.fulfillmentStatus == "Pending Packing"
+        canManageOrder(o) -> o.fulfillmentStatus in setOf("Pending Packing", "Packed")
+        else -> false
+    }
+
+    /** Cancels an order and puts its items back in stock. */
+    fun cancelOrder(id: String) {
+        val o = order(id) ?: return
+        if (denied(canCancelOrder(o), "cancel this order")) return
+        val back = o.items.filter { it.productId != null }.groupBy { it.productId!! }.mapValues { (_, v) -> v.sumOf { it.qty } }
+        val byFarm = isTourist
+        db.tx {
+            back.forEach { (pid, q) -> allProducts.firstOrNull { it.id == pid }?.let { db.updateStock(pid, it.stock + q) } }
+            updateOrder(id) { it.copy(fulfillmentStatus = "Cancelled", currentLocation = "Order cancelled") }
+        }
+        allProducts = allProducts.map { p -> back[p.id]?.let { p.copy(stock = p.stock + it) } ?: p }
+        if (byFarm) notifyFarms(farmsOf(o), AppNotification(System.currentTimeMillis(), "Order Cancelled: ${o.customerName}",
+            "Order #${o.orderNumber} was cancelled by the customer.", "${o.customerName} cancelled order #${o.orderNumber}. Items were returned to stock.",
+            nowStamp(), false, "farmer_order", "farmer"))
+        else addNotification(AppNotification(System.currentTimeMillis(), "Order Cancelled by Farm", "Order #${o.orderNumber} was cancelled by the farm.",
+            "Your order #${o.orderNumber} was cancelled by the farm. Contact the farm about any payment you made.",
+            nowStamp(), false, "order", "tourist", recipientEmail = o.customerEmail))
+        showToast("Order #${o.orderNumber} cancelled. Items returned to stock.")
+    }
+
+    /** Admin-only: permanently removes an order record. */
+    fun deleteOrder(id: String) {
+        if (denied(isAdmin, "delete orders")) return
+        db.deleteOrder(id)
+        farmerOrders = farmerOrders.filterNot { it.id == id }
+        if (selectedOrderForView?.id == id) selectedOrderForView = null
+        if (selectedOrderForTracking?.id == id) selectedOrderForTracking = null
+        showToast("Order deleted.")
+    }
+
     private fun updateOrder(id: String, f: (FarmerOrder) -> FarmerOrder) {
         farmerOrders = farmerOrders.map { if (it.id == id) f(it).also { o -> db.saveOrder(o) } else it }
         selectedOrderForView = selectedOrderForView?.let { v -> farmerOrders.firstOrNull { it.id == v.id } }
@@ -1118,6 +1335,7 @@ class AppState(val db: Database, private val scope: CoroutineScope) {
 
     fun orderStatusUpdate(id: String, status: String) {
         if (denied(order(id)?.let(::canManageOrder) == true, "update this order")) return
+        if (order(id)?.fulfillmentStatus == "Cancelled") { showToast("This order was cancelled."); return }
         updateOrder(id) { syncSteps(it, status) }
         showToast("Order #$id status updated to: $status")
     }

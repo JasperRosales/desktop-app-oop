@@ -174,7 +174,7 @@ fun FarmerDashboard(s: AppState) {
             SecondaryButton("Add Fruit Picking", icon = Icons.Outlined.AutoAwesome) { s.isAddOrchardModalOpen = true }
             Spacer(Modifier.width(8.dp))
         }
-        PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.isAddProductModalOpen = true }
+        PrimaryButton("List New Produce", icon = Icons.Filled.Add) { s.openAddProduct() }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         StatCard("Total Products", "${s.farmProducts.size}", "Active in marketplace", Color(0xFFDFF1E6), Modifier.weight(1f)) { s.navigate(Page.FARMER_PRODUCTS) }

@@ -55,6 +55,8 @@ data class FarmTour(
     val thumbnails: List<String>,
     /** Owning farm (farmers.id); null = platform-managed. */
     val farmerId: Int? = null,
+    /** Deleted by its owner: hidden from the catalog but kept so old bookings still resolve. */
+    val archived: Boolean = false,
 )
 
 @Serializable
@@ -74,6 +76,7 @@ data class FruitPickingItem(
     val seasonAvailability: String,
     val thumbnails: List<String> = emptyList(),
     val farmerId: Int? = null,
+    val archived: Boolean = false,
 )
 
 @Serializable
@@ -91,6 +94,8 @@ data class Product(
     val description: String,
     val farmOrigin: String,
     val farmerId: Int? = null,
+    /** Deleted by its owner: hidden from the market but kept so old orders still resolve. */
+    val archived: Boolean = false,
 ) {
     val discountedPrice: Double get() = price * (1 - discountPercent / 100.0)
 }

@@ -178,6 +178,9 @@ class Database(val file: File = defaultFile()) {
         listOf("users", "tours", "fruit_picking", "products").forEach { t ->
             if ("farmer_id" !in columns(t)) exec("ALTER TABLE $t ADD COLUMN farmer_id INTEGER")
         }
+        listOf("tours", "fruit_picking", "products").forEach { t ->
+            if ("archived" !in columns(t)) exec("ALTER TABLE $t ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+        }
         if ("product_id" !in columns("order_items")) exec("ALTER TABLE order_items ADD COLUMN product_id INTEGER")
         exec("UPDATE users SET farmer_id=1 WHERE farmer_id IS NULL AND lower(email)=lower(?)", Role.FARMER.email)
         assignFarmOwnership()
@@ -497,10 +500,23 @@ class Database(val file: File = defaultFile()) {
 
     private fun saveTour(t: FarmTour) = exec(
         insertSql("tours", listOf("id", "name", "location", "rating", "reviews_count", "price_per_person",
-            "operating_hours", "amenities", "activities", "image_url", "description", "highlight_tag", "farmer_name", "thumbnails", "farmer_id")),
+            "operating_hours", "amenities", "activities", "image_url", "description", "highlight_tag", "farmer_name", "thumbnails", "farmer_id", "archived")),
         t.id, t.name, t.location, t.rating, t.reviewsCount, t.pricePerPerson, t.operatingHours, t.amenities.enc(),
-        t.activities.enc(), t.imageUrl, t.description, t.highlightTag, t.farmerName, t.thumbnails.enc(), t.farmerId,
+        t.activities.enc(), t.imageUrl, t.description, t.highlightTag, t.farmerName, t.thumbnails.enc(), t.farmerId, t.archived,
     )
+
+    /** Updates a tour's editable fields (keeps rating, reviews and owner). */
+    fun updateTour(t: FarmTour) = exec(
+        "UPDATE tours SET name=?, price_per_person=?, operating_hours=?, activities=?, image_url=?, description=? WHERE id=?",
+        t.name, t.pricePerPerson, t.operatingHours, t.activities.enc(), t.imageUrl, t.description, t.id,
+    )
+
+    /** Soft-deletes (or restores) a tour, orchard or product so history that points at it keeps working. */
+    fun setArchived(table: String, id: Long, archived: Boolean) {
+        require(table in setOf("tours", "fruit_picking", "products"))
+        exec("UPDATE $table SET archived=? WHERE id=?", archived, id)
+        if (table == "products" && archived) exec("DELETE FROM user_cart WHERE product_id=?", id)
+    }
 
     fun tours(): List<FarmTour> = query("SELECT * FROM tours ORDER BY id") { r ->
         FarmTour(
@@ -508,14 +524,21 @@ class Database(val file: File = defaultFile()) {
             r.getInt("price_per_person"), r.str("operating_hours")!!, r.str("amenities")!!.decList(),
             r.str("activities")!!.decList(), r.str("image_url")!!, r.str("description")!!, r.str("highlight_tag")!!,
             r.str("farmer_name")!!, r.str("thumbnails")!!.decList(), r.getInt("farmer_id").takeIf { !r.wasNull() },
+            r.getInt("archived") == 1,
         )
     }
 
     private fun saveFruit(f: FruitPickingItem) = exec(
         insertSql("fruit_picking", listOf("id", "title", "farm_name", "location", "fruit_name", "price_per_person",
-            "rating", "reviews_count", "duration", "seasonal_fruits", "image_url", "description", "season_availability", "thumbnails", "farmer_id")),
+            "rating", "reviews_count", "duration", "seasonal_fruits", "image_url", "description", "season_availability", "thumbnails", "farmer_id", "archived")),
         f.id, f.title, f.farmName, f.location, f.fruitName, f.pricePerPerson, f.rating, f.reviewsCount, f.duration,
-        f.seasonalFruits, f.imageUrl, f.description, f.seasonAvailability, f.thumbnails.enc(), f.farmerId,
+        f.seasonalFruits, f.imageUrl, f.description, f.seasonAvailability, f.thumbnails.enc(), f.farmerId, f.archived,
+    )
+
+    /** Updates an orchard's editable fields (keeps rating, reviews and owner). */
+    fun updateOrchard(f: FruitPickingItem) = exec(
+        "UPDATE fruit_picking SET title=?, fruit_name=?, seasonal_fruits=?, price_per_person=?, duration=?, season_availability=?, image_url=?, description=? WHERE id=?",
+        f.title, f.fruitName, f.seasonalFruits, f.pricePerPerson, f.duration, f.seasonAvailability, f.imageUrl, f.description, f.id,
     )
 
     fun fruitPicking(): List<FruitPickingItem> = query("SELECT * FROM fruit_picking ORDER BY id") { r ->
@@ -524,15 +547,22 @@ class Database(val file: File = defaultFile()) {
             r.getInt("price_per_person"), r.getDouble("rating"), r.getInt("reviews_count"), r.str("duration")!!,
             r.str("seasonal_fruits")!!, r.str("image_url")!!, r.str("description")!!, r.str("season_availability")!!,
             r.str("thumbnails")!!.decList(), r.getInt("farmer_id").takeIf { !r.wasNull() },
+            r.getInt("archived") == 1,
         )
     }
 
     // ------------------------------------------------------------------ products
     fun saveProduct(p: Product, sortOrder: Int) = exec(
         insertSql("products", listOf("id", "name", "category", "price", "unit", "discount_percent", "stock", "rating",
-            "reviews_count", "image_url", "description", "farm_origin", "sort_order", "farmer_id")),
+            "reviews_count", "image_url", "description", "farm_origin", "sort_order", "farmer_id", "archived")),
         p.id, p.name, p.category, p.price, p.unit, p.discountPercent, p.stock, p.rating, p.reviewsCount, p.imageUrl,
-        p.description, p.farmOrigin, sortOrder, p.farmerId,
+        p.description, p.farmOrigin, sortOrder, p.farmerId, p.archived,
+    )
+
+    /** Updates a product's editable fields in place (keeps sort order, rating and cart/order links). */
+    fun updateProduct(p: Product) = exec(
+        "UPDATE products SET name=?, category=?, price=?, unit=?, discount_percent=?, stock=?, image_url=?, description=? WHERE id=?",
+        p.name, p.category, p.price, p.unit, p.discountPercent, p.stock, p.imageUrl, p.description, p.id,
     )
 
     fun updateStock(productId: Long, stock: Int) = exec("UPDATE products SET stock=? WHERE id=?", stock, productId)
@@ -542,6 +572,7 @@ class Database(val file: File = defaultFile()) {
             r.getLong("id"), r.str("name")!!, r.str("category")!!, r.getDouble("price"), r.str("unit")!!,
             r.getInt("discount_percent"), r.getInt("stock"), r.getDouble("rating"), r.getInt("reviews_count"),
             r.str("image_url")!!, r.str("description")!!, r.str("farm_origin")!!, r.getInt("farmer_id").takeIf { !r.wasNull() },
+            r.getInt("archived") == 1,
         )
     }
 
@@ -648,6 +679,12 @@ class Database(val file: File = defaultFile()) {
         }
     }
 
+    fun deleteOrder(id: String) = tx {
+        exec("DELETE FROM delivery_steps WHERE order_id=?", id)
+        exec("DELETE FROM order_items WHERE order_id=?", id)
+        exec("DELETE FROM orders WHERE id=?", id)
+    }
+
     // ------------------------------------------------------------------ notifications
     fun saveNotification(n: AppNotification, sortOrder: Int? = null) {
         val order = sortOrder ?: existingSort("notifications", n.id) ?: (minSort("notifications") - 1)
@@ -684,6 +721,27 @@ class Database(val file: File = defaultFile()) {
         if (table != null && v.targetId != null) exec(
             "UPDATE $table SET rating=ROUND((rating*reviews_count + ?)*1.0/(reviews_count+1), 1), reviews_count=reviews_count+1 WHERE id=?",
             v.rating, v.targetId,
+        )
+    }
+
+    private fun ratingTable(v: CustomerReview) = when (v.targetType) { "tour" -> "tours"; "orchard" -> "fruit_picking"; else -> null }
+
+    /** Changes a review and shifts the reviewed item's average by the rating difference. */
+    fun updateReview(v: CustomerReview, rating: Int, comment: String) = tx {
+        exec("UPDATE reviews SET rating=?, comment=? WHERE id=?", rating, comment, v.id)
+        val table = ratingTable(v)
+        if (table != null && v.targetId != null) exec(
+            "UPDATE $table SET rating=ROUND(rating + (? - ?)*1.0/MAX(reviews_count,1), 1) WHERE id=?", rating, v.rating, v.targetId,
+        )
+    }
+
+    /** Deletes a review and removes its rating from the reviewed item's average. */
+    fun deleteReview(v: CustomerReview) = tx {
+        exec("DELETE FROM reviews WHERE id=?", v.id)
+        val table = ratingTable(v)
+        if (table != null && v.targetId != null) exec(
+            """UPDATE $table SET rating=CASE WHEN reviews_count<=1 THEN 0 ELSE ROUND((rating*reviews_count - ?)*1.0/(reviews_count-1), 1) END,
+               reviews_count=MAX(reviews_count-1,0) WHERE id=?""", v.rating, v.targetId,
         )
     }
 
